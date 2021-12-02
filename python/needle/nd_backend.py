@@ -123,30 +123,22 @@ def mul(inputs, attrs):
 
 @register_nd_compute("EWiseDiv")
 def divide(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0] / inputs[1]
 
 
 @register_nd_compute("DivScalar")
 def divide_scalar(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0] / attrs["scalar"]
 
 
 @register_nd_compute("PowerScalar")
 def power_scalar(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0] ** attrs["scalar"]
 
 
 @register_nd_compute("MatMul")
 def matmul(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0] @ inputs[1]
 
 
 @register_nd_compute("Summation")
@@ -160,30 +152,22 @@ def summation(inputs, attrs):
 
     Returns an array with the same shape, except with the specified axes removed.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].sum(axes=attrs["axes"], keepdims=attrs["keepdims"])
 
 
 @register_nd_compute("BroadcastTo")
 def broadcast_to(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].broadcast_to(new_shape=attrs["shape"])
 
 
 @register_nd_compute("Reshape")
 def reshape(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].reshape(attrs["shape"])
 
 
 @register_nd_compute("Negate")
 def negate(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return -inputs[0]
 
 
 @register_nd_compute("Transpose")
@@ -195,30 +179,25 @@ def transpose(inputs, attrs):
     If axes is a tuple of ints, permute those two axes.
     If axes is None, permutes the last two axes.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    new_axis = list(range(len(inputs[0].shape)))
+    a0, a1 = attrs["axes"] if attrs["axes"] is not None else (-1, -2)
+    new_axis[a0], new_axis[a1] = new_axis[a1], new_axis[a0]
+    return inputs[0].permute(new_axis)
 
 
 @register_nd_compute("Log")
 def log(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].log()
 
 
 @register_nd_compute("Exp")
 def exp(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].exp()
 
 
 @register_nd_compute("ReLU")
 def relu(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return (inputs[0] > 0) * inputs[0]
 
 
 @register_nd_compute("LogSoftmax")
@@ -226,16 +205,15 @@ def logsoftmax(inputs, attrs):
     """
     Computes log softmax along the last dimension of the array.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    x = inputs[0]
+    last = len(x.shape) - 1
+    normalized = x - x.max(axes=last, keepdims=True).broadcast_to(x.shape)
+    return normalized - normalized.exp().sum(axes=last, keepdims=True).log().broadcast_to(x.shape)
 
 
 @register_nd_compute("Tanh")
 def tanh(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].tanh()
 
 
 @register_nd_compute("GetItem")
@@ -247,9 +225,7 @@ def get_item(inputs, attrs):
     Returns array indexed by idxs i.e. if array A has shape (5, 3, 2),
     then the shape of the A[0, :, :] would be (3, 2).
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].__getitem__(attrs["idxs"])
 
 
 @register_nd_compute("SetItem")
@@ -260,9 +236,7 @@ def set_item(inputs, attrs):
 
     Sets array A at idxs with array B and returns the array.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].__setitem__(attrs["idxs"], inputs[1])
 
 
 @register_nd_compute("Stack")
@@ -275,9 +249,19 @@ def stack(As, attrs):
 
     All arrays need to be of the same size.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    in_shape = As[0].shape
+    assert all(in_shape == A.shape for A in As), "All arrays should have the same shape."
+    out_shape = list(in_shape)
+    out_shape.insert(attrs["axis"], len(As))
+    out = nd.empty(tuple(out_shape), dtype=As[0].dtype, device=As[0].device)
+
+    # copy in
+    indices = [slice(None)] * len(out.shape)
+    for i, A in enumerate(As):
+        indices[attrs["axis"]] = i
+        out[tuple(indices)] = A
+
+    return out
 
 
 @register_nd_compute("Flip")

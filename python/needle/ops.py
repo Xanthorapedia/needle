@@ -334,9 +334,7 @@ class TanhOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return ((1 - tanh(node.inputs[0]) ** 2) * out_grad,)
 
 
 tanh = register_op("Tanh", TanhOp())
@@ -347,9 +345,9 @@ class GetItemOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"idxs": idxs})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        out = zeros_like(node.inputs[0], device=node.inputs[0].device)
+        out = set_item(out, node.attrs["idxs"], out_grad)
+        return (out,)
 
 get_item = register_op("GetItem", GetItemOp())
 
@@ -369,9 +367,13 @@ class StackOp(Op):
         return Tensor.make_from_op(self, args, attrs={'axis': axis})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        axis = node.attrs["axis"]
+        indices = [slice(None)] * len(out_grad.shape)
+        ret = []
+        for i in range(out_grad.shape[axis]):
+            indices[axis] = i
+            ret.append(out_grad.__getitem__(tuple(indices)))
+        return tuple(ret)
 
 stack = register_op("Stack", StackOp())
 
