@@ -326,6 +326,9 @@ def test_broadcast_to_backward():
     backward_check(ndl.broadcast_to, ndl.Tensor(np.random.randn()), shape=(3, 3, 3))
     backward_check(ndl.broadcast_to, ndl.Tensor(np.random.randn(5,4,1)), shape=(5,4,3))
 
+def test_log_backward():
+    backward_check(ndl.log, ndl.Tensor(np.random.rand(5, 4) * 10 + 1e-6))
+
 
 def test_summation_backward():
     backward_check(ndl.summation, ndl.Tensor(np.random.randn(5,4)), axes=(1,))

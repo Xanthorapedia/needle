@@ -77,65 +77,48 @@ def multiply_scalar(inputs, attrs):
 
 @register_numpy_compute("EWiseDiv")
 def divide(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.true_divide(inputs[0], inputs[1])
 
 
 @register_numpy_compute("DivScalar")
 def divide_scalar(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.true_divide(inputs[0], attrs["scalar"])
 
 
 @register_numpy_compute("MatMul")
 def matmul(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.matmul(inputs[0], inputs[1])
 
 
 @register_numpy_compute("Summation")
 def summation(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.sum(inputs[0], axis=attrs["axes"])
 
 
 @register_numpy_compute("BroadcastTo")
 def broadcast_to(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.broadcast_to(inputs[0], attrs["shape"])
 
 
 @register_numpy_compute("Reshape")
 def reshape(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.reshape(inputs[0], attrs["shape"])
 
 
 @register_numpy_compute("Negate")
 def negate(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.negative(inputs[0])
 
 
 @register_numpy_compute("Transpose")
 def transpose(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    axes = attrs['axes'] if attrs['axes'] is not None else [-1, -2]
+    return np.swapaxes(inputs[0], *axes)
 
 
 @register_numpy_compute("Log")
 def log(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return np.log(inputs[0])
 
 
 @register_numpy_compute("Exp")
@@ -145,6 +128,4 @@ def exp(inputs, attrs):
 
 @register_numpy_compute("ReLU")
 def relu(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return (inputs[0] > 0) * inputs[0]

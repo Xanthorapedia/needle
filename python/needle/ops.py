@@ -121,9 +121,8 @@ class EWiseDivOp(Op):
         return Tensor.make_from_op(self, [a, b])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        a, b = node.inputs
+        return out_grad / b, -a / (b * b) * out_grad
 
 
 divide = register_op("EWiseDiv", EWiseDivOp())
@@ -134,9 +133,7 @@ class DivScalarOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"scalar": scalar})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return [out_grad / node.attrs["scalar"]]
 
 
 divide_scalar = register_op("DivScalar", DivScalarOp())
@@ -147,9 +144,11 @@ class MatMulOp(Op):
         return Tensor.make_from_op(self, [a, b])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        a, b = node.inputs
+        raw_grad_a, raw_grad_b = out_grad @ b.transpose((-1, -2)), a.transpose((-1, -2)) @ out_grad
+        grad_a = raw_grad_a.sum(tuple(range(len(raw_grad_a.shape) - len(a.shape))))
+        grad_b = raw_grad_b.sum(tuple(range(len(raw_grad_b.shape) - len(b.shape))))
+        return grad_a, grad_b
 
 
 matmul = register_op("MatMul", MatMulOp())
@@ -160,9 +159,11 @@ class SummationOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"axes": axes})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        keep_dim_shape = list(out_grad.shape)
+        if node.attrs["axes"] is not None:
+            for i in sorted(node.attrs["axes"]):
+                keep_dim_shape.insert(i, 1)
+        return (out_grad.reshape(tuple(keep_dim_shape)).broadcast_to(node.inputs[0].shape),)
 
 
 summation = register_op("Summation", SummationOp())
@@ -173,9 +174,10 @@ class BroadcastToOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"shape": shape})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        in_shape, out_shape = node.inputs[0].shape, out_grad.shape
+        unsqueezed_shape = (1,) * (len(out_shape) - len(in_shape)) + in_shape
+        sum_axes = [i for i, (m, n) in enumerate(zip(unsqueezed_shape, out_shape)) if m != n]
+        return (out_grad.sum(tuple(sum_axes)).reshape(in_shape),)
 
 
 broadcast_to = register_op("BroadcastTo", BroadcastToOp())
@@ -186,9 +188,7 @@ class ReshapeOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"shape": shape})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (out_grad.reshape(node.inputs[0].shape),)
 
 
 reshape = register_op("Reshape", ReshapeOp())
@@ -199,9 +199,7 @@ class NegateOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (-out_grad,)
 
 
 negate = register_op("Negate", NegateOp())
@@ -212,9 +210,7 @@ class TransposeOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"axes": axes})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (out_grad.transpose(node.attrs["axes"]),)
 
 
 transpose = register_op("Transpose", TransposeOp())
@@ -225,9 +221,7 @@ class LogOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (out_grad / node.inputs[0],)
 
 
 log = register_op("Log", LogOp())
@@ -249,9 +243,7 @@ class ReLUOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (Tensor(node.inputs[0].data > 0) * out_grad,)
 
 relu = register_op("ReLU", ReLUOp())
 

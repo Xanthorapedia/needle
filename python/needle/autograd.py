@@ -1,6 +1,6 @@
 """Core data structures."""
 import needle
-from typing import List, Optional, NamedTuple
+from typing import List, Optional, NamedTuple, Dict, TypeVar
 from collections import namedtuple
 from .device import default_device, Device, CachedData
 
@@ -217,7 +217,7 @@ class Tensor(Value):
     __rmatmul__ = __matmul__
 
 
-def compute_gradient_of_variables(output_tensor, out_grad):
+def compute_gradient_of_variables(output_tensor: Tensor, out_grad: Tensor):
     """Take gradient of output node with respect to each node in node_list.
 
     Store the computed result in the grad field of each Variable.
@@ -230,11 +230,15 @@ def compute_gradient_of_variables(output_tensor, out_grad):
     node_to_output_grads_list[output_tensor] = [out_grad]
 
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
-    reverse_topo_order = list(reversed(find_topo_sort([output_tensor])))
+    reverse_topo_order: List[Tensor] = list(reversed(find_topo_sort([output_tensor])))
 
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    for vi in reverse_topo_order:
+        if vi.requires_grad:
+            vi.grad = sum_node_list(node_to_output_grads_list[vi])
+            # only valid for node with inputs
+            if len(vi.inputs) > 0:
+                for vj, vji_ in zip(vi.inputs, vi.op.gradient(vi.grad, vi)):
+                    node_to_output_grads_list.setdefault(vj, []).append(vji_)
 
 
 def find_topo_sort(node_list: List[Value]) -> List[Value]:
@@ -245,22 +249,25 @@ def find_topo_sort(node_list: List[Value]) -> List[Value]:
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    visited = {}
+    return sum_node_list(topo_sort_dfs(node, visited) for node in node_list)
 
 
-def topo_sort_dfs(node, visited, topo_order):
+def topo_sort_dfs(node: Value, visited: Dict[Value, bool]):
     """Post-order DFS"""
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    if visited.get(node, False):
+        return []
+    else:
+        visited[node] = True
+        return sum([topo_sort_dfs(child, visited) for child in node.inputs], []) + [node]
 
 ##############################
 ####### Helper Methods #######
 ##############################
 
-def sum_node_list(node_list):
+_T = TypeVar('_T')
+
+def sum_node_list(node_list: List[_T]) -> _T:
     """Custom sum function in order to avoid create redundant nodes in Python sum implementation."""
     from operator import add
     from functools import reduce

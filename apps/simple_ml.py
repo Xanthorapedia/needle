@@ -3,6 +3,10 @@ import gzip
 import numpy as np
 
 import sys
+
+from numpy.core.fromnumeric import prod
+
+from needle.autograd import Tensor
 sys.path.append('python/')
 import needle as ndl
 
@@ -29,12 +33,18 @@ def parse_mnist(image_filesname, label_filename):
                 labels of the examples.  Values should be of type np.int8 and
                 for MNIST will contain the values 0-9.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    with gzip.open(image_filesname, 'r') as f:
+        magic, n, r, c = struct.unpack('>iiii', f.read(16))
+        assert magic == 2051
+        X = np.frombuffer(f.read(n * r * c), dtype=np.uint8).astype(np.float32).reshape(n, r * c) / 255
+    with gzip.open(label_filename, 'r') as f:
+        magic, n = struct.unpack('>ii', f.read(8))
+        assert magic == 2049
+        y = np.frombuffer(f.read(n), dtype=np.uint8)
+    return X, y
 
 
-def softmax_loss(Z, y_one_hot):
+def softmax_loss(Z: ndl.Tensor, y_one_hot: ndl.Tensor):
     """ Return softmax loss.  Note that for the purposes of this assignment,
     you don't need to worry about "nicely" scaling the numerical properties
     of the log-sum-exp computation, but can just compute this directly.
@@ -50,12 +60,17 @@ def softmax_loss(Z, y_one_hot):
     Returns:
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    diff = ndl.log(ndl.summation(ndl.exp(Z), axes=(1,))) - ndl.summation(Z * y_one_hot, axes=(1,))
+    return ndl.summation(diff) / prod(diff.shape)
 
 
-def nn_epoch(X, y, W1, W2, lr = 0.1, batch=100):
+def chunk_it(x, chunk_size):
+    for st in range(0, len(x), chunk_size):
+        nd = min(len(x), st + chunk_size)
+        yield x[st:nd]
+
+
+def nn_epoch(X, y, W1: ndl.Tensor, W2: ndl.Tensor, lr = 0.1, batch=100):
     """ Run a single epoch of SGD for a two-layer neural network defined by the
     weights W1 and W2 (with no bias terms):
         logits = ReLU(X * W1) * W1
@@ -78,17 +93,31 @@ def nn_epoch(X, y, W1, W2, lr = 0.1, batch=100):
             W1: ndl.Tensor[np.float32]
             W2: ndl.Tensor[np.float32]
     """
+    # train
+    W1.requires_grad = W2.requires_grad = True
 
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    for X_, y_ in zip(chunk_it(X, batch), chunk_it(y, batch)):
+        X_ = ndl.Tensor(X_, requires_grad=False)
+
+        logits = ndl.relu(X_ @ W1) @ W2
+        loss: Tensor = loss_err(logits, y_, return_numpy=False)
+
+        loss.backward()
+
+        W1 = ndl.Tensor((W1 - W1.grad * lr).data)
+        W2 = ndl.Tensor((W2 - W2.grad * lr).data)
+    
+    return W1, W2
 
 
 ### CODE BELOW IS FOR ILLUSTRATION, YOU DO NOT NEED TO EDIT
 
-def loss_err(h,y):
+def loss_err(h,y, return_numpy=True):
     """ Helper funciton to compute both loss and error"""
     y_one_hot = np.zeros((y.shape[0], h.shape[-1]))
     y_one_hot[np.arange(y.size), y] = 1
     y_ = ndl.Tensor(y_one_hot)
-    return softmax_loss(h,y_).numpy(), np.mean(h.numpy().argmax(axis=1) != y)
+    if not return_numpy:
+        return softmax_loss(h,y_)
+    else:
+        return softmax_loss(h,y_).numpy(), np.mean(h.numpy().argmax(axis=1) != y)
