@@ -8,7 +8,6 @@ import needle.device
 from needle.device import Device, DLDeviceType
 from needle.ops import register_op_attr
 
-
 class NumpyDevice(Device):
     def __dlpack_device__(self):
         return (DLDeviceType.CPU, 0)
@@ -29,6 +28,19 @@ class NumpyDevice(Device):
         arr.fill(fill_value)
         return arr
 
+    def randn(self, shape, dtype, mean=0.0, std=1.0):
+        return np.random.normal(loc=mean, scale=std, size=shape).astype(dtype)
+    
+    def randb(self, shape, dtype, ntrials=1, p=0.5):
+        return np.random.binomial(ntrials, p, size=shape).astype(dtype)
+    
+    def randu(self, shape, dtype, low=0, high=0):
+        return np.random.uniform(low=low, high=high, size=shape).astype(dtype)
+    
+    def one_hot(self, y, num_classes=10):
+        I = np.eye(num_classes)
+        return I[y]
+    
     def to_numpy(self, data):
         return data
 
@@ -53,26 +65,41 @@ def register_numpy_compute(name, value=None):
 
 
 # device specific computations
+@register_numpy_compute("MakeTuple")
+def make_tuple(inputs, attrs):
+    return tuple(inputs)
+
+
+@register_numpy_compute("TupleGetItem")
+def tuple_get_item(inputs, attrs):
+    return inputs[0][attrs["index"]]
+
+
+@register_numpy_compute("FusedAddScalars")
+def fused_add_scalars(inputs, attrs):
+    return tuple([inputs[0] + attrs["c0"], inputs[0] + attrs["c1"]])
+
+
 @register_numpy_compute("EWiseAdd")
 def add(inputs, attrs):
-    assert len(inputs) == 2
-    return np.add(inputs[0], inputs[1])
+    return np.add(inputs[0], inputs[1]).astype(inputs[0].dtype)
 
 
 @register_numpy_compute("AddScalar")
 def add_scalar(inputs, attrs):
-    assert len(inputs) == 1
-    return np.add(inputs[0], attrs["scalar"])
+    return np.add(inputs[0], attrs["scalar"]).astype(inputs[0].dtype)
 
 
 @register_numpy_compute("EWiseMul")
-def multiply(inputs, attrs):
-    return np.multiply(inputs[0], inputs[1])
+def mul(inputs, attrs):
+    assert len(inputs) == 2
+    return np.multiply(inputs[0], inputs[1]).astype(inputs[0].dtype)
 
 
 @register_numpy_compute("MulScalar")
-def multiply_scalar(inputs, attrs):
-    return np.multiply(inputs[0], attrs["scalar"])
+def mul_scalar(inputs, attrs):
+    assert len(inputs) == 1
+    return np.multiply(inputs[0], attrs["scalar"]).astype(inputs[0].dtype)
 
 
 @register_numpy_compute("EWiseDiv")
@@ -88,6 +115,13 @@ def divide_scalar(inputs, attrs):
 @register_numpy_compute("MatMul")
 def matmul(inputs, attrs):
     return np.matmul(inputs[0], inputs[1])
+
+
+@register_numpy_compute("PowerScalar")
+def power_scalar(inputs, attrs):
+    ### BEGIN YOUR SOLUTION
+    raise NotImplementedError()
+    ### END YOUR SOLUTION
 
 
 @register_numpy_compute("Summation")
@@ -129,3 +163,10 @@ def exp(inputs, attrs):
 @register_numpy_compute("ReLU")
 def relu(inputs, attrs):
     return (inputs[0] > 0) * inputs[0]
+
+
+@register_numpy_compute("LogSoftmax")
+def logsoftmax(inputs, attrs):
+    ### BEGIN YOUR SOLUTION
+    raise NotImplementedError()
+    ### END YOUR SOLUTION

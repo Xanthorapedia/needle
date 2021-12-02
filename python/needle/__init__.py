@@ -8,5 +8,9 @@ from . import numpy_backend
 # from . import cuda_backend
 
 # from .cuda_backend import cuda
-from . import device
 from .numpy_backend import numpy_device
+
+from . import nn
+from . import optim
+from . import init
+from . import data

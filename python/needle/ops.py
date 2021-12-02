@@ -1,10 +1,10 @@
-"""Operator table."""
+"""Operatpr table."""
 # Global operator table.
-import numpy as np
 from numbers import Number
-from .autograd import Op, Tensor
+from typing import Optional, List
+import numpy as np
+from .autograd import Op, Tensor, Value, Tuple
 from .device import default_device
-from typing import Optional
 
 OP_TABLE = {}
 
@@ -67,6 +67,51 @@ def register_op_attr(op_name, attr_name, attr_value=None):
     return _register(attr_value)
 
 
+class MakeTupleOp(Op):
+    def __call__(self, *args: List[Value]) -> Tuple:
+        return Tuple.make_from_op(self, list(args))
+
+    def gradient(self, out_grad, node):
+        assert isinstance(out_grad, Tuple)
+        return [out_grad[i] for i in range(len(out_grad))]
+
+
+make_tuple = register_op("MakeTuple", MakeTupleOp())
+
+
+class TupleGetItemOp(Op):
+    def __call__(self, a: Tuple, index: int, *, fold_const=True) -> Tensor:
+        assert isinstance(a, Tuple)
+        # constant folding
+        if fold_const and isinstance(a.op, MakeTupleOp):
+            return a.inputs[index]
+        return Tensor.make_from_op(self, [a], attrs={"index": index})
+
+    def gradient(self, out_grad, node):
+        index = node.attrs["index"]
+        in_grad = []
+        for i, value in enumerate(node.inputs[0]):
+            if i != index:
+                in_grad.append(zeros_like(value))
+            else:
+                in_grad.append(out_grad)
+        return [make_tuple(*in_grad)]
+
+
+tuple_get_item = register_op("TupleGetItem", TupleGetItemOp())
+
+
+class FusedAddScalarsOp(Op):
+    def __call__(self, a: Tensor, c0: float, c1: float) -> Tuple:
+        return Tuple.make_from_op(self, [a], attrs={"c0": c0, "c1": c1})
+
+    def gradient(self, out_grad, node):
+        return [out_grad[0] + out_grad[1]]
+
+
+fused_add_scalars = register_op("FusedAddScalars", FusedAddScalarsOp())
+
+
 class EWiseAddOp(Op):
     def __call__(self, a: Tensor, b: Tensor) -> Tensor:
         return Tensor.make_from_op(self, [a, b])
@@ -110,8 +155,19 @@ class MulScalarOp(Op):
     def gradient(self, out_grad, node):
         return [out_grad * node.attrs["scalar"]]
 
-
 multiply_scalar = register_op("MulScalar", MulScalarOp())
+
+
+class PowerScalarOp(Op):
+    def __call__(self, a: Tensor, scalar: Number) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={"scalar": scalar})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+        
+power_scalar = register_op("PowerScalar", PowerScalarOp())
 
 
 class EWiseDivOp(Op):
@@ -237,7 +293,6 @@ class ExpOp(Op):
 
 exp = register_op("Exp", ExpOp())
 
-
 class ReLUOp(Op):
     def __call__(self, a: Tensor) -> Tensor:
         return Tensor.make_from_op(self, [a])
@@ -248,16 +303,54 @@ class ReLUOp(Op):
 relu = register_op("ReLU", ReLUOp())
 
 
+class LogSoftmaxOp(Op):
+    def __call__(self, x: Tensor) -> Tensor:
+        return Tensor.make_from_op(self, [x])
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+logsoftmax = register_op("LogSoftmax", LogSoftmaxOp())
+
 # additional helper functions
-
-
-def full(shape, fill_value, *, dtype="float32", device=None, requires_grad=False):
+def full(shape, fill_value, *, rand={}, dtype="float32", device=None, requires_grad=False):
     device = device if device else default_device()
-    arr = device.empty(shape, dtype)
-    device.fill(arr, fill_value)
-
+    
+    if not rand or 'dist' not in rand:
+        arr = device.empty(shape, dtype)
+        device.fill(arr, fill_value)
+    else:
+        if rand['dist'] == 'normal':
+            arr = device.randn(shape, dtype, mean=rand['mean'], std=rand['std'])
+        if rand['dist'] == 'binomial':
+            arr = device.randb(shape, dtype, ntrials=rand['trials'], p=rand['prob'])
+        if rand['dist'] == 'uniform':
+            arr = device.randu(shape, dtype, low=rand['low'], high=rand['high'])
+            
     return Tensor.make_const(arr, device, requires_grad=requires_grad)
 
+
+def one_hot(labels: Tensor, *, num_classes=10, dtype="float32", device=None):
+    device = device if device else default_device()
+    arr = device.one_hot(labels.numpy(), num_classes=num_classes)
+    return Tensor.make_const(arr, device, requires_grad=False)
+
+
+def zeros(shape, *, dtype="float32", device=None, requires_grad=False):
+    return full(shape, 0, dtype=dtype, device=device, requires_grad=requires_grad)
+
+
+def randn(shape, *, mean=0.0, std=1.0, dtype="float32", device=None, requires_grad=False):
+    return full(shape, 0, rand={'dist': 'normal', 'mean': mean, 'std': std}, dtype=dtype, device=device, requires_grad=requires_grad)
+
+
+def randb(shape, *, n=1, p=0.5, dtype="float32", device=None, requires_grad=False):
+    return full(shape, 0, rand={'dist': 'binomial', 'trials': n, 'prob': p}, dtype=dtype, device=device, requires_grad=requires_grad)
+
+def randu(shape, *, low=0, high=1, dtype="float32", device=None, requires_grad=False):
+    return full(shape, 0, rand={'dist': 'uniform', 'low': low, 'high': high}, dtype=dtype, device=device, requires_grad=requires_grad)
 
 def zeros_like(array, *, device=None, requires_grad=False):
     device = device if device else array.device
