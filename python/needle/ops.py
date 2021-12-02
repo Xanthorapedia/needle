@@ -163,9 +163,8 @@ class PowerScalarOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"scalar": scalar})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        exponent = node.attrs["scalar"]
+        return [out_grad * exponent * node.inputs[0] ** (exponent - 1)]
         
 power_scalar = register_op("PowerScalar", PowerScalarOp())
 
@@ -182,6 +181,19 @@ class EWiseDivOp(Op):
 
 
 divide = register_op("EWiseDiv", EWiseDivOp())
+
+
+class GreaterScalarOp(Op):
+    """Op to compare two nodes."""
+
+    def __call__(self, a: Tensor, scalar: Number) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={"scalar": scalar})
+
+    def gradient(self, out_grad, node):
+        raise NotImplementedError()
+
+
+greater = register_op("GreaterScalar", GreaterScalarOp())
 
 
 class DivScalarOp(Op):
@@ -211,13 +223,14 @@ matmul = register_op("MatMul", MatMulOp())
 
 
 class SummationOp(Op):
-    def __call__(self, a: Tensor, axes: Optional[tuple] = None) -> Tensor:
-        return Tensor.make_from_op(self, [a], attrs={"axes": axes})
+    def __call__(self, a: Tensor, axes: Optional[tuple] = None, keepdims: bool = False) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={"axes": axes, "keepdims": keepdims})
 
     def gradient(self, out_grad, node):
         keep_dim_shape = list(out_grad.shape)
-        if node.attrs["axes"] is not None:
-            for i in sorted(node.attrs["axes"]):
+        if not node.attrs["keepdims"] and node.attrs["axes"] is not None:
+            axes = [len(keep_dim_shape) - ax if ax < 0 else ax for ax in node.attrs["axes"]]
+            for i in sorted(axes):
                 keep_dim_shape.insert(i, 1)
         return (out_grad.reshape(tuple(keep_dim_shape)).broadcast_to(node.inputs[0].shape),)
 
@@ -308,9 +321,7 @@ class LogSoftmaxOp(Op):
         return Tensor.make_from_op(self, [x])
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (out_grad - summation(out_grad, axes=(-1,), keepdims=True) * exp(node),)
 
 logsoftmax = register_op("LogSoftmax", LogSoftmaxOp())
 
@@ -334,12 +345,16 @@ def full(shape, fill_value, *, rand={}, dtype="float32", device=None, requires_g
 
 def one_hot(labels: Tensor, *, num_classes=10, dtype="float32", device=None):
     device = device if device else default_device()
-    arr = device.one_hot(labels.numpy(), num_classes=num_classes)
+    arr = device.one_hot(labels.numpy(), num_classes=num_classes, dtype=dtype)
     return Tensor.make_const(arr, device, requires_grad=False)
 
 
 def zeros(shape, *, dtype="float32", device=None, requires_grad=False):
     return full(shape, 0, dtype=dtype, device=device, requires_grad=requires_grad)
+
+
+def ones(shape, *, dtype="float32", device=None, requires_grad=False):
+    return full(shape, 1, dtype=dtype, device=device, requires_grad=requires_grad)
 
 
 def randn(shape, *, mean=0.0, std=1.0, dtype="float32", device=None, requires_grad=False):

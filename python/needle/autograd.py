@@ -1,4 +1,5 @@
 """Core data structures."""
+import numpy as np
 import needle
 from typing import List, Optional, NamedTuple, Dict, TypeVar
 from collections import namedtuple
@@ -12,6 +13,7 @@ class Op:
 
     def gradient(self, out_grad: "Value", node: "Value") -> List["Value"]:
         """Compute partial adjoint for each input value for a given output adjoint.
+
         Parameters
         ----------
         out_grad: Value
@@ -252,9 +254,10 @@ class Tensor(Value):
             return needle.ops.multiply_scalar(self, other)
 
     def __pow__(self, other):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        if isinstance(other, Tensor):
+            raise NotImplementedError()
+        else:
+            return needle.ops.power_scalar(self, other)
         
     def __sub__(self, other):
         if isinstance(other, Tensor):
@@ -274,8 +277,13 @@ class Tensor(Value):
     def matmul(self, other):
         return needle.ops.matmul(self, other)
 
-    def sum(self, axes=None):
-        return needle.ops.summation(self, axes)
+    def sum(self, axes=None, keepdims=False):
+        return needle.ops.summation(self, axes, keepdims=keepdims)
+
+    def mean(self, axes=None, keepdims=False):
+        axes = tuple(list(range(len(self.shape)))) if axes is None else axes
+        n_elem = np.prod([self.shape[ax] for ax in axes])
+        return needle.ops.summation(self, axes, keepdims=keepdims) / n_elem
 
     def broadcast_to(self, shape):
         return needle.ops.broadcast_to(self, shape)
@@ -289,13 +297,16 @@ class Tensor(Value):
     def transpose(self, axes=None):
         return needle.ops.transpose(self, axes)
 
+    def __gt__(self, other):
+        return needle.ops.greater(self, other)
+
     __radd__ = __add__
     __rmul__ = __mul__
     __rsub__ = __sub__
     __rmatmul__ = __matmul__
 
 
-def compute_gradient_of_variables(output_tensor, out_grad):
+def compute_gradient_of_variables(output_tensor: Tensor, out_grad: Tensor):
     """Take gradient of output node with respect to each node in node_list.
 
     Store the computed result in the grad field of each Variable.

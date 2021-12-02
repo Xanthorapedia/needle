@@ -37,8 +37,8 @@ class NumpyDevice(Device):
     def randu(self, shape, dtype, low=0, high=0):
         return np.random.uniform(low=low, high=high, size=shape).astype(dtype)
     
-    def one_hot(self, y, num_classes=10):
-        I = np.eye(num_classes)
+    def one_hot(self, y, dtype, num_classes=10):
+        I = np.eye(num_classes, dtype=dtype)
         return I[y]
     
     def to_numpy(self, data):
@@ -82,24 +82,24 @@ def fused_add_scalars(inputs, attrs):
 
 @register_numpy_compute("EWiseAdd")
 def add(inputs, attrs):
-    return np.add(inputs[0], inputs[1]).astype(inputs[0].dtype)
+    return np.add(inputs[0], inputs[1])
 
 
 @register_numpy_compute("AddScalar")
 def add_scalar(inputs, attrs):
-    return np.add(inputs[0], attrs["scalar"]).astype(inputs[0].dtype)
+    return np.add(inputs[0], attrs["scalar"])
 
 
 @register_numpy_compute("EWiseMul")
 def mul(inputs, attrs):
     assert len(inputs) == 2
-    return np.multiply(inputs[0], inputs[1]).astype(inputs[0].dtype)
+    return np.multiply(inputs[0], inputs[1])
 
 
 @register_numpy_compute("MulScalar")
 def mul_scalar(inputs, attrs):
     assert len(inputs) == 1
-    return np.multiply(inputs[0], attrs["scalar"]).astype(inputs[0].dtype)
+    return np.multiply(inputs[0], attrs["scalar"])
 
 
 @register_numpy_compute("EWiseDiv")
@@ -111,22 +111,18 @@ def divide(inputs, attrs):
 def divide_scalar(inputs, attrs):
     return np.true_divide(inputs[0], attrs["scalar"])
 
+@register_numpy_compute("PowerScalar")
+def power_scalar(inputs, attrs):
+    return np.power(inputs[0], attrs["scalar"])
 
 @register_numpy_compute("MatMul")
 def matmul(inputs, attrs):
     return np.matmul(inputs[0], inputs[1])
 
 
-@register_numpy_compute("PowerScalar")
-def power_scalar(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
-
-
 @register_numpy_compute("Summation")
 def summation(inputs, attrs):
-    return np.sum(inputs[0], axis=attrs["axes"])
+    return np.sum(inputs[0], axis=attrs["axes"], keepdims=attrs["keepdims"])
 
 
 @register_numpy_compute("BroadcastTo")
@@ -142,6 +138,11 @@ def reshape(inputs, attrs):
 @register_numpy_compute("Negate")
 def negate(inputs, attrs):
     return np.negative(inputs[0])
+
+
+@register_numpy_compute("GreaterScalar")
+def greater_scalar(inputs, attrs):
+    return np.greater(inputs[0], attrs["scalar"])
 
 
 @register_numpy_compute("Transpose")
@@ -167,6 +168,5 @@ def relu(inputs, attrs):
 
 @register_numpy_compute("LogSoftmax")
 def logsoftmax(inputs, attrs):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    normalized = inputs[0] - np.max(inputs[0], axis=-1, keepdims=True)
+    return normalized - np.log(np.sum(np.exp(normalized), axis=-1, keepdims=True))

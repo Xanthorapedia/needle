@@ -1,3 +1,6 @@
+import gzip
+from math import ceil, floor
+import struct
 import numpy as np
 from .autograd import Tensor
 
@@ -15,18 +18,18 @@ class FlipHorizontal(Transform):
         pass
 
     def __call__(self, img):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        side = round(np.sqrt(img.size))
+        return np.fliplr(np.reshape(img, (side, side))).flatten()
 
 class RandomCrop(Transform):
     def __init__(self, padding=3):
         self.padding = padding
 
     def __call__(self, _x):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        side = round(np.sqrt(_x.size))
+        padded = np.pad(np.reshape(_x, (side, side)), self.padding)
+        x, y = np.random.randint(self.padding * 2, size=2)
+        return padded[x:x+side, y:y+side].flatten()
 
 
 class Sampler:
@@ -54,14 +57,10 @@ class SequentialSampler(Sampler):
         self.data_source = data_source
 
     def __iter__(self) -> Iterator[int]:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return iter(range(len(self)))
 
     def __len__(self) -> int:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return len(self.data_source)
 
 
 class RandomSampler(Sampler):
@@ -93,15 +92,13 @@ class RandomSampler(Sampler):
         if self.num_samples is None:
             self.num_samples = len(data_source)
 
+        self.order = np.random.choice(self.num_samples, size=self.num_samples, replace=self.replacement)
+
     def __iter__(self) -> Iterator[int]:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return iter(self.order)
 
     def __len__(self) -> int:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.num_samples
 
 
 class BatchSampler(Sampler):
@@ -133,15 +130,18 @@ class BatchSampler(Sampler):
         self.batch_size = batch_size
         self.drop_last = drop_last
 
+        self.n_batch = (floor if self.drop_last else ceil)(len(self.sampler) / self.batch_size)
+
     def __iter__(self) -> Iterator[List[int]]:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        sampler_itr = iter(self.sampler)
+        while True:
+            batch = [item for _, item in zip(range(self.batch_size), sampler_itr)]
+            if len(batch) == 0 or (self.drop_last and len(batch) < self.batch_size):
+                break
+            yield batch
 
     def __len__(self) -> int:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.n_batch
 
 
 def default_collate():
@@ -150,9 +150,11 @@ def default_collate():
 
 
 def collate_mnist(batch):
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    batch = np.atleast_2d(batch)
+    Xs, ys = [np.array(data) for data in zip(*batch)]
+    if len(Xs) == 1:
+        Xs, ys = Xs[0], ys[0]
+    return Tensor(Xs), Tensor(ys)
 
 
 class Dataset:
@@ -352,9 +354,8 @@ class _IterableDatasetFetcher(_BaseDatasetFetcher):
         self.ended = False
 
     def fetch(self, possibly_batched_index):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        possibly_batched_index = np.atleast_1d(possibly_batched_index)
+        return collate_mnist([self.dataset[i] for i in possibly_batched_index])
 
 
 def parse_mnist(image_filename, label_filename):
@@ -376,9 +377,15 @@ def parse_mnist(image_filename, label_filename):
                 labels of the examples.  Values should be of type np.int8 and
                 for MNIST will contain the values 0-9.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    with gzip.open(image_filename, 'r') as f:
+        magic, n, r, c = struct.unpack('>iiii', f.read(16))
+        assert magic == 2051
+        X = np.frombuffer(f.read(n * r * c), dtype=np.uint8).astype(np.float32).reshape(n, r * c) / 255
+    with gzip.open(label_filename, 'r') as f:
+        magic, n = struct.unpack('>ii', f.read(8))
+        assert magic == 2049
+        y = np.frombuffer(f.read(n), dtype=np.uint8)
+    return X, y
 
 
 class MNISTDataset(Dataset):
@@ -387,16 +394,11 @@ class MNISTDataset(Dataset):
                  label_filename: str,
                  p: Optional[int] = 0.5,
                  transforms: Optional[List] = None):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        super().__init__(p, transforms)
+        self.X, self.y = parse_mnist(image_filesname, label_filename)
 
     def __getitem__(self, index) -> object:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.apply_transforms(self.X[index]), self.y[index]
 
     def __len__(self) -> int:
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return len(self.X)
