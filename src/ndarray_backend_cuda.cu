@@ -14,6 +14,7 @@ namespace cuda {
 #define TILE 4
 typedef float scalar_t;
 const size_t ELEM_SIZE = sizeof(scalar_t);
+typedef ssize_t ptrdiff_t;
 
 struct CudaArray {
   CudaArray(const size_t size) {
@@ -23,7 +24,7 @@ struct CudaArray {
   }
   ~CudaArray() { cudaFree(ptr); }
   size_t ptr_as_int() { return (size_t)ptr; }
-
+  
   scalar_t* ptr;
   size_t size;
 };
@@ -46,10 +47,10 @@ CudaDims CudaOneDim(size_t size) {
 #define MAX_VEC_SIZE 8
 struct CudaVec {
   uint32_t size;
-  uint32_t data[MAX_VEC_SIZE];
+  int32_t data[MAX_VEC_SIZE];
 };
 
-CudaVec VecToCuda(const std::vector<uint32_t>& x) {
+CudaVec VecToCuda(const std::vector<int32_t>& x) {
   CudaVec shape;
   if (x.size() > MAX_VEC_SIZE) throw std::runtime_error("Exceeded CUDA supported max dimesions");
   shape.size = x.size();

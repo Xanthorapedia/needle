@@ -52,10 +52,6 @@ class NumpyDevice(Device):
         return op.numpy_compute(inputs, attrs)
 
 
-# set default device to be numpy device.
-needle.device._DEFAULT_DEVICE = NumpyDevice
-
-
 def numpy_device() -> NumpyDevice:
     return NumpyDevice()
 

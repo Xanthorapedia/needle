@@ -155,6 +155,7 @@ class MulScalarOp(Op):
     def gradient(self, out_grad, node):
         return [out_grad * node.attrs["scalar"]]
 
+
 multiply_scalar = register_op("MulScalar", MulScalarOp())
 
 
@@ -324,7 +325,92 @@ class LogSoftmaxOp(Op):
     def gradient(self, out_grad, node):
         return (out_grad - summation(out_grad, axes=(-1,), keepdims=True) * exp(node),)
 
+
 logsoftmax = register_op("LogSoftmax", LogSoftmaxOp())
+
+
+class TanhOp(Op):
+    def __call__(self, a: Tensor) -> Tensor:
+        return Tensor.make_from_op(self, [a])
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+
+tanh = register_op("Tanh", TanhOp())
+
+
+class GetItemOp(Op):
+    def __call__(self, a: Tensor, idxs: Tuple) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={"idxs": idxs})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+get_item = register_op("GetItem", GetItemOp())
+
+
+class SetItemOp(Op):
+    def __call__(self, a: Tensor, idxs: Tuple, b: Tensor) -> Tensor:
+        return Tensor.make_from_op(self, [a, b], attrs={"idxs": idxs})
+
+    def gradient(self, out_grad, node):
+        raise NotImplementedError()
+
+set_item = register_op("SetItem", SetItemOp())
+
+
+class StackOp(Op):
+    def __call__(self, args: List[Value], axis: int) -> Tensor:
+        return Tensor.make_from_op(self, args, attrs={'axis': axis})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+stack = register_op("Stack", StackOp())
+
+
+class ConvOp(Op):
+    def __call__(self, a: Tensor, b: Tensor, stride: Optional[int] = 1, padding: Optional[int] = 0) -> Tensor:
+        return Tensor.make_from_op(self, [a, b], attrs={'stride': stride, 'padding': padding})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+conv = register_op("Conv", ConvOp())
+
+
+class FlipOp(Op):
+    def __call__(self, a: Tensor, axes: tuple) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={'axes': axes})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+flip = register_op("Flip", FlipOp())
+
+
+class DilateOp(Op):
+    def __call__(self, a: Tensor, dilation: int, axes: tuple) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={'dilation': dilation, 'axes': axes})
+
+    def gradient(self, out_grad, node):
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+dilate = register_op("Dilate", DilateOp())
+
 
 # additional helper functions
 def full(

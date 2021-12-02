@@ -1,14 +1,18 @@
 import gzip
+import io
 from math import ceil, floor
+import os
+import pickle
 import struct
+
 import numpy as np
 from .autograd import Tensor
 
 from typing import Iterator, Optional, List, Sized, Union, Iterable, Any
+from needle import backend_ndarray as nd
 
 
 class Transform:
-
     def __call__(self, x):
         raise NotImplementedError
 
@@ -75,8 +79,12 @@ class RandomSampler(Sampler):
     data_source: Sized
     replacement: bool
 
-    def __init__(self, data_source: Sized, replacement: bool = False,
-                 num_samples: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        data_source: Sized,
+        replacement: bool = False,
+        num_samples: Optional[int] = None,
+    ) -> None:
         self.data_source = data_source
         self.replacement = replacement
         self.num_samples = num_samples
@@ -129,7 +137,6 @@ class BatchSampler(Sampler):
         self.sampler = sampler
         self.batch_size = batch_size
         self.drop_last = drop_last
-
         self.n_batch = (floor if self.drop_last else ceil)(len(self.sampler) / self.batch_size)
 
     def __iter__(self) -> Iterator[List[int]]:
@@ -144,9 +151,9 @@ class BatchSampler(Sampler):
         return self.n_batch
 
 
-def default_collate():
+def default_collate(batch, device, dtype):
     r"""Puts each data field into a tensor with outer dimension batch size"""
-    raise NotImplementedError
+    return collate_ndarray(batch, device, dtype)
 
 
 def collate_mnist(batch):
@@ -155,6 +162,15 @@ def collate_mnist(batch):
     if len(Xs) == 1:
         Xs, ys = Xs[0], ys[0]
     return Tensor(Xs), Tensor(ys)
+
+
+def collate_ndarray(batch, device, dtype):
+    """
+    Returns Tensor batch with nd array backend
+    """
+    ### BEGIN YOUR SOLUTION
+    raise NotImplementedError()
+    ### END YOUR SOLUTION
 
 
 class Dataset:
@@ -209,23 +225,26 @@ class DataLoader:
     batch_size: Optional[int]
     drop_last: bool
     sampler: Sampler
-    _iterator: Optional['_BaseDataLoaderIter']
+    _iterator: Optional["_BaseDataLoaderIter"]
     __initialized = False
 
-    def __init__(self, dataset: Dataset,
-                 batch_size: Optional[int] = 1,
-                 shuffle: bool = False,
-                 sampler: Union[Sampler, Iterable, None] = None,
-                 collate_fn: Optional = default_collate,
-                 drop_last: bool = False,
-                 ):
+    def __init__(
+        self,
+        dataset: Dataset,
+        batch_size: Optional[int] = 1,
+        shuffle: bool = False,
+        sampler: Union[Sampler, Iterable, None] = None,
+        collate_fn: Optional[Any] = default_collate,
+        drop_last: bool = False,
+        device = None,
+        dtype = None
+    ):
 
         self.dataset = dataset
         self.collate_fn = collate_fn
 
         if sampler is not None and shuffle:
-            raise ValueError('sampler option is mutually exclusive with '
-                             'shuffle')
+            raise ValueError("sampler option is mutually exclusive with " "shuffle")
 
         if sampler is None:  # give default samplers
             # We are only doing map style datasets
@@ -236,6 +255,8 @@ class DataLoader:
 
         self.batch_size = batch_size
         self.drop_last = drop_last
+        self.device = device
+        self.dtype = dtype
         self.sampler = sampler
 
         if batch_size > 1:
@@ -248,12 +269,12 @@ class DataLoader:
 
         self._iterator = None
 
-    def _get_iterator(self) -> '_BaseDataLoaderIter':
+    def _get_iterator(self) -> "_BaseDataLoaderIter":
         return _SingleProcessDataLoaderIter(self)
 
     # We quote '_BaseDataLoaderIter' since it isn't defined yet and the definition can't be moved up
     # since '_BaseDataLoaderIter' references 'DataLoader'.
-    def __iter__(self) -> '_BaseDataLoaderIter':
+    def __iter__(self) -> "_BaseDataLoaderIter":
         # When using a single worker the returned iterator should be
         # created everytime to avoid reseting its state
         # However, in the case of a multiple workers iterator
@@ -293,11 +314,13 @@ class _BaseDataLoaderIter(object):
         self._index_sampler = loader._index_sampler
         self._sampler_iter = iter(self._index_sampler)
         self._collate_fn = loader.collate_fn
+        self._device = loader.device
+        self._dtype = loader.dtype
         self._base_seed = np.empty((), dtype=np.int64)
         self._num_yielded = 0
         self._profile_name = "enumerate(DataLoader)#{}.__next__".format(self.__class__.__name__)
 
-    def __iter__(self) -> '_BaseDataLoaderIter':
+    def __iter__(self) -> "_BaseDataLoaderIter":
         return self
 
     def _reset(self, loader, first_iter=False):
@@ -329,7 +352,8 @@ class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
         super(_SingleProcessDataLoaderIter, self).__init__(loader)
 
         self._dataset_fetcher = _IterableDatasetFetcher(
-            self._dataset, self._collate_fn, self._drop_last)
+            self._dataset, self._collate_fn, self._drop_last, self._device, self._dtype
+        )
 
     def _next_data(self):
         index = self._next_index()  # may raise StopIteration
@@ -338,10 +362,12 @@ class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
 
 
 class _BaseDatasetFetcher(object):
-    def __init__(self, dataset, collate_fn, drop_last):
+    def __init__(self, dataset, collate_fn, drop_last, device, dtype):
         self.dataset = dataset
         self.collate_fn = collate_fn
         self.drop_last = drop_last
+        self.device = device
+        self.dtype = dtype
 
     def fetch(self, possibly_batched_index):
         raise NotImplementedError()
@@ -402,3 +428,158 @@ class MNISTDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.X)
+
+
+class CIFAR10Dataset(Dataset):
+    def __init__(
+        self,
+        base_folder: str,
+        train: bool,
+        p: Optional[int] = 0.5,
+        transforms: Optional[List] = None
+    ):
+        """
+        Parameters:
+        base_folder - cifar-10-batches-py folder filepath
+        train - bool, if True load training dataset, else load test dataset
+
+        Divide pixel values by 255. so that images are in 0-1 range.
+
+        Attributes:
+        X - numpy array of images
+        y - numpy array of labels
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+    def __getitem__(self, index) -> object:
+        """
+        Returns the image, label at given index
+
+        Image should be of shape (3, 32, 32)
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+    def __len__(self) -> int:
+        """
+        Returns the total number of examples in the dataset
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+
+class Dictionary(object):
+    """
+    Creates a dictionary from a list of words, mapping each word to a
+    unique integer.
+
+    Attributes:
+    word2idx: dictionary mapping from a word to its unique ID
+    idx2word: list of words in the dictionary, in the order they were added
+        to the dictionary (i.e. each word only appears once in this list)
+    """
+    def __init__(self):
+        self.word2idx = {}
+        self.idx2word = []
+
+    def add_word(self, word):
+        """
+        Input: word of type str
+
+        If the word is not in the dictionary, adds the word to the dictionary
+        and appends to the list of words.
+
+        Returns the word's unique ID.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+    def __len__(self):
+        """
+        Returns the number of unique words in the dictionary.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+
+class Corpus(object):
+    """
+    Creates corpus from train, and test txt files.
+    """
+    def __init__(self, base_dir, max_lines=None):
+        self.dictionary = Dictionary()
+        self.train = self.tokenize(os.path.join(base_dir, 'train.txt'), max_lines)
+        self.test = self.tokenize(os.path.join(base_dir, 'test.txt'), max_lines)
+
+    def tokenize(self, path, max_lines=None):
+        """
+        Input:
+        path - path to text file
+        max_lines - maximum number of lines to read in
+
+        Tokenizes a text file, first adding each word in the file to the dictionary,
+        and then tokenizing the text file to a list of IDs. When adding words to the
+        dictionary (and tokenizing the file content) '<eos>' should be appended to
+        the end of each line in order to properly account for the end of the sentence.
+
+        Output:
+        ids: List of ids
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+
+def batchify(data, batch_size, device, dtype):
+    """
+    Starting from sequential data, batchify arranges the dataset into columns.
+    For instance, with the alphabet as the sequence and batch size 4, we'd get
+    ┌ a g m s ┐
+    │ b h n t │
+    │ c i o u │
+    │ d j p v │
+    │ e k q w │
+    └ f l r x ┘.
+    These columns are treated as independent by the model, which means that the
+    dependence of e. g. 'g' on 'f' cannot be learned, but allows more efficient
+    batch processing.
+
+    If the data cannot be evenly divided by the batch size, trim off the remainder.
+
+    Returns the data as a numpy array of shape (nbatch, batch_size).
+    """
+    ### BEGIN YOUR SOLUTION
+    raise NotImplementedError()
+    ### END YOUR SOLUTION
+
+
+def get_batch(batches, i, bptt, device=None, dtype=None):
+    """
+    get_batch subdivides the source data into chunks of length bptt.
+    If source is equal to the example output of the batchify function, with
+    a bptt-limit of 2, we'd get the following two Variables for i = 0:
+    ┌ a g m s ┐ ┌ b h n t ┐
+    └ b h n t ┘ └ c i o u ┘
+    Note that despite the name of the function, the subdivison of data is not
+    done along the batch dimension (i.e. dimension 1), since that was handled
+    by the batchify function. The chunks are along dimension 0, corresponding
+    to the seq_len dimension in the LSTM or RNN.
+
+    Inputs:
+    batches - numpy array returned from batchify function
+    i - index
+    bptt - Sequence length
+
+    Returns:
+    data - Tensor of shape (bptt, bs) with cached data as NDArray
+    target - Tensor of shape (bptt*bs,) with cached data as NDArray
+    """
+    ### BEGIN YOUR SOLUTION
+    raise NotImplementedError()
+    ### END YOUR SOLUTION

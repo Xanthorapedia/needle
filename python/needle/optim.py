@@ -38,7 +38,16 @@ class SGD(Optimizer):
 
 
 class Adam(Optimizer):
-    def __init__(self, params, lr=0.01, beta1=0.9, beta2=0.999, eps=1e-8, bias_correction=True, weight_decay=0.0):
+    def __init__(
+        self,
+        params,
+        lr=0.01,
+        beta1=0.9,
+        beta2=0.999,
+        eps=1e-8,
+        bias_correction=True,
+        weight_decay=0.0,
+    ):
         super().__init__(params)
         self.lr = lr
         self.beta1 = beta1

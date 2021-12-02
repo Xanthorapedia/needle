@@ -122,6 +122,10 @@ class NDArray:
         return self._shape
 
     @property
+    def size(self):
+        return np.prod(self._shape)
+
+    @property
     def strides(self):
         return self._strides
 
@@ -149,6 +153,10 @@ class NDArray:
     def __str__(self):
         return self.numpy().__str__()
 
+    def astype(self, dtype):
+        # only support float32 for now
+        return self
+
     ### Basic array manipulation
     def fill(self, value):
         """ Fill (in place) with a constant value. """
@@ -170,7 +178,7 @@ class NDArray:
     def is_compact(self):
         """ Return true if array is compact in memory and internal size equals product
         of the shape dimensions """
-        return (self._strides == self.compact_strides(self._shape) and 
+        return (self._strides == self.compact_strides(self._shape) and
                 prod(self.shape) == self._handle.size)
 
     def compact(self):
@@ -190,6 +198,10 @@ class NDArray:
         return NDArray.make(
             shape, strides=strides, device=self.device, handle=self._handle
         )
+
+    @property
+    def flat(self):
+        return self.reshape((self.size,))
 
     def reshape(self, new_shape):
         """
@@ -491,7 +503,7 @@ class NDArray:
             def tile(a, tile):
                 return a.as_strided(
                     (a.shape[0] // tile, a.shape[1] // tile, tile, tile),
-                    (a.shape[1] * tile, tile, self.shape[1], 1),
+                    (a.shape[1] * tile, tile, a.shape[1], 1),
                 )
 
             t = self.device.__tile_size__
@@ -538,6 +550,28 @@ class NDArray:
         view, out = self.reduce_view_out(axis)
         self.device.reduce_max(view.compact()._handle, out._handle, view.shape[-1])
         return out
+
+
+    def flip(self, axes):
+        """
+        Flip this ndarray along the specified axes.
+
+        Note: compact() before returning.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
+
+
+    def pad(self, axes):
+        """
+        Pad this ndarray by zeros by the specified amount in `axes`,
+        which lists for _all_ axes the left and right padding amount, e.g.,
+        axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
+        """
+        ### BEGIN YOUR SOLUTION
+        raise NotImplementedError()
+        ### END YOUR SOLUTION
 
 
 

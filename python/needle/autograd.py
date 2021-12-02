@@ -8,6 +8,7 @@ from .device import default_device, Device, CachedData
 LAZY_MODE = False
 TENSOR_COUNTER = 0
 
+
 class Op:
     """Operator definition."""
 
@@ -235,6 +236,12 @@ class Tensor(Value):
         out_grad = out_grad if out_grad else needle.ops.ones_like(self)
         compute_gradient_of_variables(self, out_grad)
 
+    def __getitem__(self, idxs):
+        return needle.ops.get_item(self, idxs)
+
+    def __setitem__(self, idxs, other):
+        return needle.ops.set_item(self, idxs, other)
+
     def __repr__(self):
         return "needle.Tensor(" + str(self.realize_cached_data()) + ")"
 
@@ -263,12 +270,12 @@ class Tensor(Value):
             raise NotImplementedError()
         else:
             return needle.ops.power_scalar(self, other)
-        
+
     def __sub__(self, other):
         if isinstance(other, Tensor):
             return needle.ops.add(self, needle.ops.negate(other))
         else:
-            return needle.ops.add_scalar(self, needle.ops.negate(other))
+            return needle.ops.add_scalar(self, -other)
 
     def __truediv__(self, other):
         if isinstance(other, Tensor):
