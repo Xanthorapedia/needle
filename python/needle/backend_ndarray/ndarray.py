@@ -1,3 +1,4 @@
+import itertools
 import operator
 import math
 from functools import reduce
@@ -206,10 +207,10 @@ class NDArray:
         Returns:
             NDArray : reshaped array; this will point to thep
         """
+        if prod(new_shape) != prod(self._shape):
+            raise ValueError(f"Cannot reshape NDArray of shape {self._shape} into {new_shape}.")
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.as_strided(new_shape, self.compact_strides(new_shape))
 
     def permute(self, new_axes):
         """
@@ -231,10 +232,11 @@ class NDArray:
             to the same memory as the original NDArray (i.e., just shape and
             strides changed).
         """
+        assert len(new_axes) == len(self._shape)
+        new_shape = tuple([self._shape[i] for i in new_axes])
+        new_stride = tuple([self._strides[i] for i in new_axes])
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.as_strided(new_shape, new_stride)
 
     def broadcast_to(self, new_shape):
         """
@@ -255,10 +257,16 @@ class NDArray:
             NDArray: the new NDArray object with the new broadcast shape; should
             point to the same memory as the original array.
         """
-
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        assert len(new_shape) == len(self._shape)
+        new_stride = list(self._strides)
+        for i, (s, ns) in enumerate(zip(self._shape, new_shape)):
+            if s != ns:
+                if s == 1:
+                    new_stride[i] = 0
+                else:
+                    raise ValueError(f"Cannot broadcast axis {i} from {s} to {ns}.")
+        
+        return self.as_strided(new_shape, tuple(new_stride))
 
     ### Get and set elements
 
@@ -323,9 +331,23 @@ class NDArray:
         )
         assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        new_shape, new_strides, new_offset = [], [], 0
+        for shape, stride, sl in itertools.zip_longest(self._shape, self.strides, idxs, fillvalue=None):
+            if sl is None:
+                new_shape.append(shape)
+                new_strides.append(stride)
+            else:
+                if isinstance(sl, int):
+                    new_offset += stride * sl
+                else:
+                    start, stop, step = sl.start, sl.stop, sl.step
+                    new_shape.append((stop - start + step - 1) // step)
+                    new_strides.append(step * stride)
+                    new_offset += stride * start
+        return NDArray.make(
+            tuple(new_shape), strides=tuple(new_strides), device=self.device, handle=self._handle, offset=self._offset + new_offset
+        )
+        
 
     def __setitem__(self, idxs, other):
         """Set the values of a view into an array, using the same semantics

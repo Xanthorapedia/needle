@@ -31,17 +31,17 @@ class NumpyDevice(Device):
 
     def randn(self, shape, dtype, mean=0.0, std=1.0):
         return np.random.normal(loc=mean, scale=std, size=shape).astype(dtype)
-    
+
     def randb(self, shape, dtype, ntrials=1, p=0.5):
         return np.random.binomial(ntrials, p, size=shape).astype(dtype)
-    
+
     def randu(self, shape, dtype, low=0, high=0):
         return np.random.uniform(low=low, high=high, size=shape).astype(dtype)
-    
+
     def one_hot(self, y, dtype, num_classes=10):
         I = np.eye(num_classes, dtype=dtype)
         return I[y]
-    
+
     def to_numpy(self, data):
         return data
 
