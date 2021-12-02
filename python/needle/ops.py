@@ -306,6 +306,7 @@ class ExpOp(Op):
 
 exp = register_op("Exp", ExpOp())
 
+
 class ReLUOp(Op):
     def __call__(self, a: Tensor) -> Tensor:
         return Tensor.make_from_op(self, [a])
@@ -326,20 +327,22 @@ class LogSoftmaxOp(Op):
 logsoftmax = register_op("LogSoftmax", LogSoftmaxOp())
 
 # additional helper functions
-def full(shape, fill_value, *, rand={}, dtype="float32", device=None, requires_grad=False):
+def full(
+    shape, fill_value, *, rand={}, dtype="float32", device=None, requires_grad=False
+):
     device = device if device else default_device()
-    
-    if not rand or 'dist' not in rand:
+
+    if not rand or "dist" not in rand:
         arr = device.empty(shape, dtype)
         device.fill(arr, fill_value)
     else:
-        if rand['dist'] == 'normal':
-            arr = device.randn(shape, dtype, mean=rand['mean'], std=rand['std'])
-        if rand['dist'] == 'binomial':
-            arr = device.randb(shape, dtype, ntrials=rand['trials'], p=rand['prob'])
-        if rand['dist'] == 'uniform':
-            arr = device.randu(shape, dtype, low=rand['low'], high=rand['high'])
-            
+        if rand["dist"] == "normal":
+            arr = device.randn(shape, dtype, mean=rand["mean"], std=rand["std"])
+        if rand["dist"] == "binomial":
+            arr = device.randb(shape, dtype, ntrials=rand["trials"], p=rand["prob"])
+        if rand["dist"] == "uniform":
+            arr = device.randu(shape, dtype, low=rand["low"], high=rand["high"])
+
     return Tensor.make_const(arr, device, requires_grad=requires_grad)
 
 

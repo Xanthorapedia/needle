@@ -1,8 +1,8 @@
 """Core data structures."""
-import numpy as np
+from typing import List, Optional, Dict, TypeVar
+
 import needle
-from typing import List, Optional, NamedTuple, Dict, TypeVar
-from collections import namedtuple
+import numpy as np
 from .device import default_device, Device, CachedData
 
 LAZY_MODE = False
@@ -60,8 +60,8 @@ class Value:
 
     def __del__(self):
         global TENSOR_COUNTER
-        TENSOR_COUNTER -=1
-        
+        TENSOR_COUNTER -= 1
+
     def _init(
         self,
         op: Optional[Op],
@@ -198,7 +198,9 @@ class Tensor(Value):
         tensor._init(
             None,
             [],
-            cached_data=data if not isinstance(data, Tensor) else data.realize_cached_data(),
+            cached_data=data
+            if not isinstance(data, Tensor)
+            else data.realize_cached_data(),
             cached_device=device,
             requires_grad=requires_grad,
         )
@@ -211,7 +213,10 @@ class Tensor(Value):
     @data.setter
     def data(self, value):
         assert isinstance(value, Tensor)
-        assert value.device == self.device and value.dtype == self.dtype, "%s %s" % (value.dtype, self.dtype)
+        assert value.device == self.device and value.dtype == self.dtype, "%s %s" % (
+            value.dtype,
+            self.dtype,
+        )
         self.cached_data = value.realize_cached_data()
 
     def detach(self):

@@ -1,4 +1,4 @@
-# Homework 2
+# Homework 3
 
-Public repository and stub/testing code for Homework 2 of 10-714.
+Public repository and stub/testing code for Homework 3 of 10-714.
 

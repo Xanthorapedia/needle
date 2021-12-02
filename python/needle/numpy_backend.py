@@ -8,6 +8,7 @@ import needle.device
 from needle.device import Device, DLDeviceType
 from needle.ops import register_op_attr
 
+
 class NumpyDevice(Device):
     def __dlpack_device__(self):
         return (DLDeviceType.CPU, 0)
