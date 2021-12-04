@@ -260,9 +260,7 @@ def test_getitem_backward(shape, idxs, device):
 def test_setitem(shape, idxs, device):
     _A = np.random.randn(*shape).astype(np.float32)
     shape = _A[idxs].shape
-    if len(shape) == 0:
-        shape = (1,)
-    _B = np.random.randn(*shape).astype(np.float32)
+    _B = np.float32(np.random.randn(*shape))
     A = ndl.Tensor(nd.array(_A), device=device)
     B = ndl.Tensor(nd.array(_B), device=device)
     A[idxs] = B
