@@ -104,12 +104,10 @@ class Linear(Module):
                               device=device, dtype=dtype, requires_grad=True)) if bias else None
 
     def forward(self, x: Tensor)-> Tensor:
-        N = x.shape[:-1]
-        x = x.reshape(N + (1, self.in_features))
-        out = x @ self.weight.broadcast_to(N + (self.in_features, self.out_features))
+        out = x @ self.weight
         if self.bias is not None:
-            out += self.bias.broadcast_to(N + (1, self.out_features))
-        return out.reshape(N + (self.out_features,))
+            out += self.bias.reshape((1, self.out_features)).broadcast_to(out.shape)
+        return out
 
 
 class ReLU(Module):
@@ -166,8 +164,8 @@ class BatchNorm(Module):
         self.dim = dim
         self.eps = eps
         self.momentum = momentum
-        self.weight = Parameter(ndl.ones(self.dim, requires_grad=True))
-        self.bias = Parameter(ndl.zeros(self.dim, requires_grad=True))
+        self.weight = Parameter(ndl.ones((self.dim,), requires_grad=True))
+        self.bias = Parameter(ndl.zeros((self.dim,), requires_grad=True))
         self.running_mean = None
         self.running_var = None
 
@@ -177,8 +175,9 @@ class BatchNorm(Module):
         stats_dims = tuple(list(range(len(x.shape) - 1)))
         N = np.prod([x.shape[d] for d in stats_dims])
 
+        data_shape = (1,) * (len(x.shape) - 1) + (self.dim,)
         x_mean = x.sum(axes=stats_dims) / N
-        x_var = ((x - x_mean.broadcast_to(x.shape)) ** 2).sum(axes=stats_dims) / N
+        x_var = ((x - x_mean.reshape(data_shape).broadcast_to(x.shape)) ** 2).sum(axes=stats_dims) / N
 
         if self.running_mean is None:
             self.running_mean = ndl.zeros_like(x_mean, device=x_mean.device)
@@ -191,8 +190,8 @@ class BatchNorm(Module):
         else:
             mu, sig = self.running_mean, self.running_var
 
-        weighted_normalized = (x - mu.broadcast_to(x.shape)) * self.weight.broadcast_to(x.shape) / ((sig + self.eps) ** 0.5).broadcast_to(x.shape)
-        return (weighted_normalized + self.bias.broadcast_to(x.shape)).transpose((1, -1))
+        weighted_normalized = (x - mu.reshape(data_shape).broadcast_to(x.shape)) * self.weight.reshape(data_shape).broadcast_to(x.shape) / ((sig.reshape(data_shape) + self.eps) ** 0.5).broadcast_to(x.shape)
+        return (weighted_normalized + self.bias.reshape(data_shape).broadcast_to(x.shape)).transpose((1, -1))
 
 
 class LayerNorm(Module):
@@ -207,7 +206,8 @@ class LayerNorm(Module):
         feature_dims = tuple(list(range(len(x.shape) - len(self.dims), len(x.shape))))
         x_demean = x - x.mean(axes=feature_dims, keepdims=True).broadcast_to(x.shape)
         x_var = (x_demean ** 2).mean(axes=feature_dims, keepdims=True).broadcast_to(x.shape)
-        w, b = self.weight.broadcast_to(x.shape), self.bias.broadcast_to(x.shape)
+        data_shape = (1,) * (len(x.shape) - len(self.dims)) + self.dims
+        w, b = self.weight.reshape(data_shape).broadcast_to(x.shape), self.bias.reshape(data_shape).broadcast_to(x.shape)
         return x_demean / ((x_var + self.eps) ** 0.5) * w + b
 
 

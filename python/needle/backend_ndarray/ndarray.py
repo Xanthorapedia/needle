@@ -337,11 +337,10 @@ class NDArray:
             idxs = (idxs,)
         idxs = tuple(
             [
-                self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)
-                for i, s in enumerate(idxs)
+                self.process_slice(s, i) if isinstance(s, slice) else s
+                for i, s in itertools.zip_longest(range(self.ndim), idxs, fillvalue=slice(None))
             ]
         )
-        assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
         new_shape, new_strides, new_offset = [], [], 0
         for shape, stride, sl in itertools.zip_longest(self._shape, self.strides, idxs, fillvalue=None):
@@ -383,6 +382,7 @@ class NDArray:
                 view.strides,
                 view._offset,
             )
+        return self
 
     ### Collection of elementwise and scalar function: add, multiply, boolean, etc
 
@@ -526,29 +526,35 @@ class NDArray:
             return out
 
     ### Reductions, i.e., sum/max over all element or over given axis
-    def reduce_view_out(self, axis):
+    def reduce_view_out(self, axes, keepdims=False):
         """ Return a view to the array set up for reduction functions and output array. """
-        if axis is None:
+        if axes is None:
             view = self.reshape((1,) * (self.ndim - 1) + (prod(self.shape),))
-            out = NDArray.make((1,) * self.ndim, device=self.device)
+            out = NDArray.make(tuple(), device=self.device)
+            reduce_size = view.shape[-1]
         else:
+            axes = tuple([self.ndim + ax if ax < 0 else ax for ax in np.atleast_1d(axes)])
             view = self.permute(
-                tuple([a for a in range(self.ndim) if a != axis]) + (axis,)
+                tuple([a for a in range(self.ndim) if a not in axes]) + axes
             )
-            out = NDArray.make(
-                tuple([1 if i == axis else s for i, s in enumerate(self.shape)]),
-                device=self.device,
-            )
-        return view, out
+            out_shape = []
+            for i, s in enumerate(self.shape):
+                if i not in axes:
+                    out_shape.append(s)
+                elif keepdims:
+                    out_shape.append(1)
+            out = NDArray.make(tuple(out_shape), device=self.device)
+            reduce_size = prod([self.shape[i] for i in axes])
+        return view, out, reduce_size
 
-    def sum(self, axis=None):
-        view, out = self.reduce_view_out(axis)
-        self.device.reduce_sum(view.compact()._handle, out._handle, view.shape[-1])
+    def sum(self, axes=None, keepdims=False):
+        view, out, reduce_size = self.reduce_view_out(axes, keepdims)
+        self.device.reduce_sum(view.compact()._handle, out._handle, reduce_size)
         return out
 
-    def max(self, axis=None):
-        view, out = self.reduce_view_out(axis)
-        self.device.reduce_max(view.compact()._handle, out._handle, view.shape[-1])
+    def max(self, axes=None, keepdims=False):
+        view, out, reduce_size = self.reduce_view_out(axes, keepdims)
+        self.device.reduce_max(view.compact()._handle, out._handle, reduce_size)
         return out
 
 

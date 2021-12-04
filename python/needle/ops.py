@@ -228,11 +228,10 @@ class SummationOp(Op):
         return Tensor.make_from_op(self, [a], attrs={"axes": axes, "keepdims": keepdims})
 
     def gradient(self, out_grad, node):
-        keep_dim_shape = list(out_grad.shape)
-        if not node.attrs["keepdims"] and node.attrs["axes"] is not None:
-            axes = [len(keep_dim_shape) - ax if ax < 0 else ax for ax in node.attrs["axes"]]
-            for i in sorted(axes):
-                keep_dim_shape.insert(i, 1)
+        keep_dim_shape = list(node.inputs[0].shape)
+        reduced_axes = list(range(len(node.inputs[0].shape))) \
+            if node.attrs["axes"] is None else np.atleast_1d(node.attrs["axes"])
+        keep_dim_shape = [1 if i in reduced_axes else s for i, s in enumerate(node.inputs[0].shape)]
         return (out_grad.reshape(tuple(keep_dim_shape)).broadcast_to(node.inputs[0].shape),)
 
 
@@ -313,7 +312,7 @@ class ReLUOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        return (Tensor(node.inputs[0].data > 0) * out_grad,)
+        return (Tensor(node.inputs[0].numpy() > 0) * out_grad,)
 
 relu = register_op("ReLU", ReLUOp())
 
@@ -323,7 +322,8 @@ class LogSoftmaxOp(Op):
         return Tensor.make_from_op(self, [x])
 
     def gradient(self, out_grad, node):
-        return (out_grad - summation(out_grad, axes=(-1,), keepdims=True) * exp(node),)
+        sum_last = summation(out_grad, axes=(-1,), keepdims=True).broadcast_to(out_grad.shape)
+        return (out_grad - sum_last * exp(node),)
 
 
 logsoftmax = register_op("LogSoftmax", LogSoftmaxOp())

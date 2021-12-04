@@ -314,7 +314,10 @@ class Tensor(Value):
 
     __radd__ = __add__
     __rmul__ = __mul__
-    __rsub__ = __sub__
+
+    def __rsub__(self, other):
+        return -self + other
+
     __rmatmul__ = __matmul__
 
 

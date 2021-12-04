@@ -156,12 +156,12 @@ def default_collate(batch, device, dtype):
     return collate_ndarray(batch, device, dtype)
 
 
-def collate_mnist(batch):
+def collate_mnist(batch, device, dtype):
     batch = np.atleast_2d(batch)
     Xs, ys = [np.array(data) for data in zip(*batch)]
     if len(Xs) == 1:
         Xs, ys = Xs[0], ys[0]
-    return Tensor(Xs), Tensor(ys)
+    return Tensor(Xs, device=device, dtype=dtype), Tensor(ys, device=device, dtype=dtype)
 
 
 def collate_ndarray(batch, device, dtype):
