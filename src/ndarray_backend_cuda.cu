@@ -45,13 +45,15 @@ CudaDims CudaOneDim(size_t size) {
 }
 
 #define MAX_VEC_SIZE 8
+template<typename _VT>
 struct CudaVec {
   uint32_t size;
-  int32_t data[MAX_VEC_SIZE];
+  _VT data[MAX_VEC_SIZE];
 };
 
-CudaVec VecToCuda(const std::vector<int32_t>& x) {
-  CudaVec shape;
+template<typename _VT>
+CudaVec<_VT> VecToCuda(const std::vector<_VT>& x) {
+  CudaVec<_VT> shape;
   if (x.size() > MAX_VEC_SIZE) throw std::runtime_error("Exceeded CUDA supported max dimesions");
   shape.size = x.size();
   for (size_t i = 0; i < x.size(); i++) {
@@ -80,19 +82,23 @@ void Fill(CudaArray* out, scalar_t val) {
 
 // Untility function to convert contiguous index i to memory location from strides
 
-__device__ size_t inline calc_offset(const CudaVec &strides, const CudaVec &index)
+__device__ size_t inline calc_offset(const CudaVec<int32_t> &strides,
+                                     const CudaVec<uint32_t> &index,
+                                     size_t offset)
 {
-  size_t loc = 0;
+  uint32_t loc = offset;
   for (size_t i = 0; i < strides.size; i++)
   {
-    loc += strides.data[i] * index.data[i];
+    loc += strides.data[i] * (int32_t) index.data[i];
   }
   return loc;
 }
 
-__device__ void inline calc_index(size_t offset, const CudaVec &shape, CudaVec *index)
+__device__ void inline calc_index(size_t offset, const CudaVec<uint32_t> &shape, CudaVec<uint32_t> *index)
 {
-  CudaVec strides;
+  if (index->size == 0) return;
+
+  CudaVec<int32_t> strides;
   strides.size = shape.size;
   strides.data[strides.size - 1] = 1;
 
@@ -108,7 +114,8 @@ __device__ void inline calc_index(size_t offset, const CudaVec &shape, CudaVec *
   }
 }
 
-__device__ void printCudaVec(const CudaVec &vec, size_t gid)
+template<typename _VT>
+__device__ void printCudaVec(const CudaVec<_VT> &vec, size_t gid)
 {
     if (blockIdx.x * blockDim.x + threadIdx.x == gid)
     {
@@ -121,7 +128,8 @@ __device__ void printCudaVec(const CudaVec &vec, size_t gid)
     }
 }
 
-void printCudaVec(const CudaVec &vec)
+template<typename _VT>
+void printCudaVec(const CudaVec<_VT> &vec)
 {
   for (size_t i = 0; i < vec.size; i++)
   {
@@ -131,8 +139,8 @@ void printCudaVec(const CudaVec &vec)
 }
 
 
-__global__ void CompactKernel(const scalar_t* a, scalar_t* out, size_t size, CudaVec shape,
-                              CudaVec strides, size_t offset) {
+__global__ void CompactKernel(const scalar_t* a, scalar_t* out, size_t size, CudaVec<uint32_t> shape,
+                              CudaVec<int32_t> strides, size_t offset) {
   /**
    * The CUDA kernel for the compact opeation.  This should effectively map a single entry in the
    * non-compact input a, to the corresponding item (at location gid) in the compact array out.
@@ -149,17 +157,17 @@ __global__ void CompactKernel(const scalar_t* a, scalar_t* out, size_t size, Cud
 
   if (gid < size)
   {
-    CudaVec index;
+    CudaVec<uint32_t> index;
     index.size = shape.size;
 
     calc_index(gid, shape, &index);
 
-    out[gid] = a[calc_offset(strides, index) + offset];
+    out[gid] = a[calc_offset(strides, index, offset)];
   }
 }
 
 void Compact(const CudaArray& a, CudaArray* out, std::vector<uint32_t> shape,
-             std::vector<uint32_t> strides, size_t offset) {
+             std::vector<int32_t> strides, size_t offset) {
   /**
    * Compact an array in memory.  Unlike the C++ version, in CUDA this will primarily call the
    * relevant CUDA kernel.  In this case, we illustrate how you should set this up (i.e., we give
@@ -182,24 +190,24 @@ void Compact(const CudaArray& a, CudaArray* out, std::vector<uint32_t> shape,
 }
 
 
-__global__ void EwiseSetitemKernel(const scalar_t* a, scalar_t* out, size_t size, CudaVec shape,
-                              CudaVec strides, size_t offset) {
+__global__ void EwiseSetitemKernel(const scalar_t* a, scalar_t* out, size_t size, CudaVec<uint32_t> shape,
+                              CudaVec<int32_t> strides, size_t offset) {
   size_t gid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (gid < size)
   {
-    CudaVec index;
+    CudaVec<uint32_t> index;
     index.size = shape.size;
 
     calc_index(gid, shape, &index);
 
-    out[calc_offset(strides, index) + offset] = a[gid];
+    out[calc_offset(strides, index, offset)] = a[gid];
   }
 }
 
 
 void EwiseSetitem(const CudaArray& a, CudaArray* out, std::vector<uint32_t> shape,
-                  std::vector<uint32_t> strides, size_t offset) {
+                  std::vector<int32_t> strides, size_t offset) {
   /**
    * Set items in a (non-compact) array using CUDA.  Yyou will most likely want to implement a
    * EwiseSetitemKernel() function, similar to those above, that will do the actual work.
@@ -217,24 +225,24 @@ void EwiseSetitem(const CudaArray& a, CudaArray* out, std::vector<uint32_t> shap
 }
 
 
-__global__ void ScalarSetitemKernel(scalar_t val, scalar_t* out, size_t size, CudaVec shape,
-                              CudaVec strides, size_t offset) {
+__global__ void ScalarSetitemKernel(scalar_t val, scalar_t* out, size_t size, CudaVec<uint32_t> shape,
+                              CudaVec<int32_t> strides, size_t offset) {
   size_t gid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (gid < size)
   {
-    CudaVec index;
+    CudaVec<uint32_t> index;
     index.size = shape.size;
 
     calc_index(gid, shape, &index);
 
-    out[calc_offset(strides, index) + offset] = val;
+    out[calc_offset(strides, index, offset)] = val;
   }
 }
 
 
 void ScalarSetitem(size_t size, scalar_t val, CudaArray* out, std::vector<uint32_t> shape,
-                   std::vector<uint32_t> strides, size_t offset) {
+                   std::vector<int32_t> strides, size_t offset) {
   /**
    * Set items is a (non-compact) array
    *

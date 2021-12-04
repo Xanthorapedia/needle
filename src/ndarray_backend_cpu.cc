@@ -45,18 +45,22 @@ void Fill(AlignedArray* out, scalar_t val) {
   }
 }
 
-size_t inline calc_offset(const std::vector<uint32_t> &strides, const std::vector<uint32_t> &index)
+uint32_t inline calc_offset(const std::vector<int32_t> &strides,
+                          const std::vector<uint32_t> &index,
+                          uint32_t offset)
 {
-  size_t loc = 0;
+  uint32_t loc = offset;
   for (size_t i = 0; i < strides.size(); i++)
   {
-    loc += strides[i] * index[i];
+    loc += strides[i] * (int32_t) index[i];
   }
   return loc;
 }
 
 bool inline _advance_idx_vec(std::vector<uint32_t> &index, const std::vector<uint32_t> &shape)
 {
+  if (index.size() == 0) return false;
+  
   index[index.size() - 1] += 1;
   // resolve carry-over
   size_t i = index.size() - 1;
@@ -71,7 +75,7 @@ bool inline _advance_idx_vec(std::vector<uint32_t> &index, const std::vector<uin
 }
 
 void Compact(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> shape,
-             std::vector<uint32_t> strides, size_t offset) {
+             std::vector<int32_t> strides, size_t offset) {
   /**
    * Compact an array in memory
    *
@@ -93,12 +97,12 @@ void Compact(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> sha
   size_t o_off = 0;
   do
   {
-    out->ptr[o_off++] = a.ptr[calc_offset(strides, index) + offset];
+    out->ptr[o_off++] = a.ptr[calc_offset(strides, index, offset)];
   } while (_advance_idx_vec(index, shape));
 }
 
 void EwiseSetitem(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> shape,
-                  std::vector<uint32_t> strides, size_t offset) {
+                  std::vector<int32_t> strides, size_t offset) {
   /**
    * Set items in a (non-compact) array
    *
@@ -116,12 +120,12 @@ void EwiseSetitem(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t
   size_t a_off = 0;
   do
   { 
-    out->ptr[calc_offset(strides, index) + offset] = a.ptr[a_off++];
+    out->ptr[calc_offset(strides, index, offset)] = a.ptr[a_off++];
   } while (_advance_idx_vec(index, shape));
 }
 
 void ScalarSetitem(const size_t size, scalar_t val, AlignedArray* out, std::vector<uint32_t> shape,
-                   std::vector<uint32_t> strides, size_t offset) {
+                   std::vector<int32_t> strides, size_t offset) {
   /**
    * Set items is a (non-compact) array
    *
@@ -143,7 +147,7 @@ void ScalarSetitem(const size_t size, scalar_t val, AlignedArray* out, std::vect
   size_t a_off = 0;
   do
   { 
-    out->ptr[calc_offset(strides, index) + offset] = val;
+    out->ptr[calc_offset(strides, index, offset)] = val;
   } while (_advance_idx_vec(index, shape));
 }
 
