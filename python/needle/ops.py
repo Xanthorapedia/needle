@@ -383,11 +383,36 @@ class ConvOp(Op):
         return Tensor.make_from_op(self, [a, b], attrs={'stride': stride, 'padding': padding})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        padding, stride = node.attrs["padding"], node.attrs["stride"]
+        if isinstance(padding, int):
+            padding = (padding, padding)
+        if isinstance(stride, int):
+            stride = (stride, stride)
+        (Ph, Pw), (Sh, Sw) = padding, stride
+
+        x, w = node.inputs
+        (Kh, Kw) = w.shape[0:2]
+        # dispatch gradient into right places
+        dilated_out = dilate(out_grad, (Sh - 1, Sw - 1), axes=(1, 2))
+        x_grad_padding = Kh - 1 - min(Ph, Kh - 1), Kw - 1 - min(Pw, Kw - 1)
+        w_grad_padding = min(Ph, Kh - 1), min(Pw, Kw - 1)
+        x_grad = conv(dilated_out, flip(transpose(w, (2, 3)), axes=(0, 1)), padding=x_grad_padding)
+        w_grad = conv(transpose(x, (0, 3)), dilate(flip(permute(out_grad, (1, 2, 0, 3)), axes=(0, 1)), (Sh - 1, Sw - 1), axes=(0, 1)), padding=w_grad_padding)
+
+        w_grad = permute(w_grad, (1, 2, 0, 3))
+        return (x_grad, w_grad)
 
 conv = register_op("Conv", ConvOp())
+
+
+class PermuteOp(Op):
+    def __call__(self, a: Tensor, axes: tuple) -> Tensor:
+        return Tensor.make_from_op(self, [a], attrs={'axes': axes})
+
+    def gradient(self, out_grad, node):
+        return (permute(out_grad, tuple(np.argsort(node.attrs["axes"]))),)
+
+permute = register_op("Permute", PermuteOp())
 
 
 class FlipOp(Op):
@@ -395,9 +420,7 @@ class FlipOp(Op):
         return Tensor.make_from_op(self, [a], attrs={'axes': axes})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return (flip(out_grad, node.attrs["axes"]),)
 
 flip = register_op("Flip", FlipOp())
 
@@ -407,9 +430,11 @@ class DilateOp(Op):
         return Tensor.make_from_op(self, [a], attrs={'dilation': dilation, 'axes': axes})
 
     def gradient(self, out_grad, node):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        dilation, axes, ndim = node.attrs["dilation"], node.attrs["axes"], len(out_grad.shape)
+        if isinstance(dilation, int):
+            dilation = (dilation,) * ndim
+        fill_stride = tuple([d + 1 if i in axes else 1 for i, d in enumerate(dilation)])
+        return (out_grad[tuple([slice(None, None, st) for st in fill_stride])],)
 
 dilate = register_op("Dilate", DilateOp())
 
@@ -436,7 +461,7 @@ def full(
 
 def one_hot(labels: Tensor, *, num_classes=10, dtype="float32", device=None):
     device = device if device else default_device()
-    arr = device.one_hot(labels.numpy(), num_classes=num_classes, dtype=dtype)
+    arr = device.one_hot(labels.numpy(), num_classes=num_classes)
     return Tensor.make_const(arr, device, requires_grad=False)
 
 

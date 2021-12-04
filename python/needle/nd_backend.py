@@ -264,6 +264,17 @@ def stack(As, attrs):
     return out
 
 
+@register_nd_compute("Permute")
+def permute(inputs, attrs):
+    """
+    Permute the input's specified axes.
+
+    Parameters:
+    axes - Axes to permute.
+    """
+    return inputs[0].permute(new_axes=attrs["axes"])
+
+
 @register_nd_compute("Flip")
 def flip(inputs, attrs):
     """
@@ -272,9 +283,7 @@ def flip(inputs, attrs):
     Parameters:
     axes - Axes to flip.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return inputs[0].flip(axes=attrs["axes"])
 
 
 @register_nd_compute("Dilate")
@@ -287,9 +296,15 @@ def dilate(inputs, attrs):
     dilation - Dilation amount (number of 0s to insert)
     axes - Axes to dilate by this amount
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    x, dilation, axes = inputs[0], attrs["dilation"], attrs["axes"]
+    if isinstance(dilation, int):
+        dilation = (dilation,) * len(axes)
+    fill_stride = tuple([dilation[axes.index(i)] + 1 if i in axes else 1 for i in range(x.ndim)])
+    new_shape = tuple([s * d for s, d in zip(x.shape, fill_stride)])
+    out = nd.empty(new_shape, x.dtype, x.device)
+    out[:] = 0
+    out[tuple([slice(None, None, st) for st in fill_stride])] = x
+    return out
 
 
 @register_nd_compute("Conv")
@@ -300,9 +315,22 @@ def conv(inputs, attrs):
     inputs[1]: "weight", (kernel_size, kernel_size, c_in, c_out)
 
     Parameters:
-    padding - (int) Pad the HW axes of the input by this amount
-    stride - (int) Stride of the convolution
+    padding - (int or tuple) Pad the HW axes of the input by this amount
+    stride - (int or tuple) Stride of the convolution
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    padding, stride = attrs["padding"], attrs["stride"]
+    if isinstance(padding, int):
+        padding = (padding, padding)
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    (Ph, Pw), (Sh, Sw) = padding, stride
+
+    x, w = inputs[0].pad(((0, 0), (Ph, Ph), (Pw, Pw), (0, 0))), inputs[1]
+    (N, H, W, Ci), (Kh, Kw, _, Co) = x.shape, w.shape
+    Ho, Wo = (H - Kh + 1) // Sh, (W - Kw + 1) // Sw
+
+    Ns, Hs, Ws, Cs = x.strides
+    x_expanded = x.as_strided((N, Ho, Wo, Kh, Kw, Ci), (Ns, Hs * Sh, Ws * Sw, Hs, Ws, Cs))
+    x_col = x_expanded.compact().reshape((N * Ho * Wo, Kh * Kw * Ci))
+    out_col = x_col @ w.compact().reshape((Kh * Kw * Ci, Co))
+    return out_col.reshape((N, Ho, Wo, Co))

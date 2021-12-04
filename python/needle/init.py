@@ -23,21 +23,33 @@ def zeros(x):
     return x
 
 def _calculate_fans(x, mode=None):
+    if len(x.shape) == 2:
+        # linear
+        fan_in = x.shape[-2]
+        fan_out = x.shape[-1]
+    elif len(x.shape) == 4:
+        # conv
+        ks = x.shape[0] * x.shape[1]
+        fan_in = ks * x.shape[2]
+        fan_out = ks * x.shape[3]
+    else:
+        raise ValueError()
+
     if mode == "fan_out":
-        return x.shape[-1]
+        return fan_out
     elif mode == "fan_in":
-        return x.shape[-2]
+        return fan_in
     elif mode is None:
-        return x.shape[-1] + x.shape[-2]
+        return fan_in, fan_out
 
 
 def xavier_uniform(x, gain=1.0):
-    a = gain * math.sqrt(6 / _calculate_fans(x))
+    a = gain * math.sqrt(6 / sum(_calculate_fans(x)))
     return uniform(x, -a, a)
 
 
 def xavier_normal(x, gain=1.0):
-    a = gain * math.sqrt(2 / _calculate_fans(x))
+    a = gain * math.sqrt(2 / sum(_calculate_fans(x)))
     return normal(x, 0, a)
 
 

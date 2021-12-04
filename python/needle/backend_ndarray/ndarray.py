@@ -564,9 +564,14 @@ class NDArray:
 
         Note: compact() before returning.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        # flip strides and relocate offset to the opposite corner
+        new_offset, new_strides = self._offset, list(self._strides)
+        for ax in axes:
+            new_offset += self._strides[ax] * (self._shape[ax] - 1)
+            new_strides[ax] *= -1
+        return NDArray.make(self._shape, strides=tuple(new_strides),
+                            device=self.device, handle=self._handle,
+                            offset=new_offset).compact()
 
 
     def pad(self, axes):
@@ -575,10 +580,11 @@ class NDArray:
         which lists for _all_ axes the left and right padding amount, e.g.,
         axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
-
+        new_shape = tuple([s + sum(p) for s, p in zip(self.shape, axes)])
+        out = empty(new_shape, self.dtype, self.device)
+        out[:] = 0
+        out[tuple([slice(p[0], p[0] + s) for s, p in zip(self.shape, axes)])] = self
+        return out
 
 
 def array(a, dtype="float32", device=None):
