@@ -312,7 +312,7 @@ class ReLUOp(Op):
         return Tensor.make_from_op(self, [a])
 
     def gradient(self, out_grad, node):
-        return (Tensor(node.inputs[0].numpy() > 0) * out_grad,)
+        return (Tensor(node.inputs[0].numpy() > 0, device=out_grad.device) * out_grad,)
 
 relu = register_op("ReLU", ReLUOp())
 

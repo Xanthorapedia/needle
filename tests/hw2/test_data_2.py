@@ -623,7 +623,9 @@ def test_collate_mnist():
     fake_y = np.random.randint(0, 10, 100)
     data = [(x, y) for x, y in zip(fake_x, fake_y)]
 
-    x, y = ndl.data.collate_mnist(data)
+    device = ndl.cpu()
+    dtype = "float32"
+    x, y = ndl.data.collate_mnist(data, device=device, dtype=dtype)
     assert type(x) == type(ndl.Tensor([1]))
 
     np.testing.assert_allclose(fake_x, x.numpy())
@@ -631,19 +633,19 @@ def test_collate_mnist():
 
     fake_x = np.random.rand(10)
     fake_y = 1
-    x, y = ndl.data.collate_mnist((fake_x, fake_y))
+    x, y = ndl.data.collate_mnist((fake_x, fake_y), device=device, dtype=dtype)
     np.testing.assert_allclose(fake_x, x.numpy())
     np.testing.assert_allclose(fake_y, y.numpy())
 
     # add a test for when the mnist dataset is ready
     X, y = ndl.data.parse_mnist("data/train-images-idx3-ubyte.gz",
                                 "data/train-labels-idx1-ubyte.gz")
-    a, b = ndl.data.collate_mnist((X[0], y[0]))
+    a, b = ndl.data.collate_mnist((X[0], y[0]), device=device, dtype=dtype)
     np.testing.assert_allclose(a.numpy(), X[0])
     np.testing.assert_allclose(b.numpy(), y[0])
 
     data = [(a, b) for a, b in zip(X[:50], y[:50])]
-    a, b = ndl.data.collate_mnist(data)
+    a, b = ndl.data.collate_mnist(data, device=device, dtype=dtype)
     np.testing.assert_allclose(a.numpy(), X[:50])
     np.testing.assert_allclose(b.numpy(), y[:50])
 

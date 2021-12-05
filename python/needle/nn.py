@@ -164,8 +164,10 @@ class BatchNorm(Module):
         self.dim = dim
         self.eps = eps
         self.momentum = momentum
-        self.weight = Parameter(ndl.ones((self.dim,), requires_grad=True))
-        self.bias = Parameter(ndl.zeros((self.dim,), requires_grad=True))
+        self.weight = Parameter(ndl.ones((self.dim,), dtype=dtype, device=device,
+                                         requires_grad=True))
+        self.bias = Parameter(ndl.zeros((self.dim,), dtype=dtype, device=device,
+                                        requires_grad=True))
         self.running_mean = None
         self.running_var = None
 
@@ -199,8 +201,10 @@ class LayerNorm(Module):
         super().__init__()
         self.dims = dims if isinstance(dims, tuple) else (dims,)
         self.eps = eps
-        self.weight = Parameter(ndl.ones(self.dims, requires_grad=True))
-        self.bias = Parameter(ndl.zeros(self.dims, requires_grad=True))
+        self.weight = Parameter(ndl.ones(self.dims, dtype=dtype, device=device,
+                                         requires_grad=True))
+        self.bias = Parameter(ndl.zeros(self.dims, dtype=dtype, device=device,
+                                        requires_grad=True))
 
     def forward(self, x: Tensor) -> Tensor:
         feature_dims = tuple(list(range(len(x.shape) - len(self.dims), len(x.shape))))
