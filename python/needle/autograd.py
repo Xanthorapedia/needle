@@ -298,7 +298,13 @@ class Tensor(Value):
         return needle.ops.summation(self, axes, keepdims=keepdims) / n_elem
 
     def broadcast_to(self, shape):
-        return needle.ops.broadcast_to(self, shape)
+        n_shape_fill = len(shape) - len(self.shape)
+        if n_shape_fill > 0:
+            new_shape = (1,) * n_shape_fill + self.shape
+            unsqueezed = needle.ops.reshape(self, new_shape)
+        else:
+            unsqueezed = self
+        return needle.ops.broadcast_to(unsqueezed, shape)
 
     def reshape(self, shape):
         return needle.ops.reshape(self, shape)

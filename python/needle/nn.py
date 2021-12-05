@@ -106,7 +106,7 @@ class Linear(Module):
     def forward(self, x: Tensor)-> Tensor:
         out = x @ self.weight
         if self.bias is not None:
-            out += self.bias.reshape((1, self.out_features)).broadcast_to(out.shape)
+            out += self.bias.broadcast_to(out.shape)
         return out
 
 
@@ -179,7 +179,7 @@ class BatchNorm(Module):
 
         data_shape = (1,) * (len(x.shape) - 1) + (self.dim,)
         x_mean = x.sum(axes=stats_dims) / N
-        x_var = ((x - x_mean.reshape(data_shape).broadcast_to(x.shape)) ** 2).sum(axes=stats_dims) / N
+        x_var = ((x - x_mean.broadcast_to(x.shape)) ** 2).sum(axes=stats_dims) / N
 
         if self.running_mean is None:
             self.running_mean = ndl.zeros_like(x_mean, device=x_mean.device)
@@ -192,8 +192,9 @@ class BatchNorm(Module):
         else:
             mu, sig = self.running_mean, self.running_var
 
-        weighted_normalized = (x - mu.reshape(data_shape).broadcast_to(x.shape)) * self.weight.reshape(data_shape).broadcast_to(x.shape) / ((sig.reshape(data_shape) + self.eps) ** 0.5).broadcast_to(x.shape)
-        return (weighted_normalized + self.bias.reshape(data_shape).broadcast_to(x.shape)).transpose((1, -1))
+        weighted_normalized = (x - mu.broadcast_to(x.shape)) * self.weight.broadcast_to(x.shape) \
+            / ((sig + self.eps) ** 0.5).broadcast_to(x.shape)
+        return (weighted_normalized + self.bias.broadcast_to(x.shape)).transpose((1, -1))
 
 
 class LayerNorm(Module):
@@ -211,7 +212,7 @@ class LayerNorm(Module):
         x_demean = x - x.mean(axes=feature_dims, keepdims=True).broadcast_to(x.shape)
         x_var = (x_demean ** 2).mean(axes=feature_dims, keepdims=True).broadcast_to(x.shape)
         data_shape = (1,) * (len(x.shape) - len(self.dims)) + self.dims
-        w, b = self.weight.reshape(data_shape).broadcast_to(x.shape), self.bias.reshape(data_shape).broadcast_to(x.shape)
+        w, b = self.weight.broadcast_to(x.shape), self.bias.broadcast_to(x.shape)
         return x_demean / ((x_var + self.eps) ** 0.5) * w + b
 
 

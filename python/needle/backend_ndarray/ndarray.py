@@ -269,16 +269,21 @@ class NDArray:
             NDArray: the new NDArray object with the new broadcast shape; should
             point to the same memory as the original array.
         """
-        assert len(new_shape) == len(self._shape)
-        new_stride = list(self._strides)
-        for i, (s, ns) in enumerate(zip(self._shape, new_shape)):
+        n_shape_fill = len(new_shape) - len(self.shape)
+        if n_shape_fill > 0:
+            unsqueezed_shape = (1,) * n_shape_fill + self.shape
+            unsqueezed = self.reshape(unsqueezed_shape)
+        else:
+            unsqueezed = self
+        new_stride = list(unsqueezed._strides)
+        for i, (s, ns) in enumerate(zip(unsqueezed._shape, new_shape)):
             if s != ns:
                 if s == 1:
                     new_stride[i] = 0
                 else:
                     raise ValueError(f"Cannot broadcast axis {i} from {s} to {ns}.")
         
-        return self.as_strided(new_shape, tuple(new_stride))
+        return unsqueezed.as_strided(new_shape, tuple(new_stride))
 
     ### Get and set elements
 
