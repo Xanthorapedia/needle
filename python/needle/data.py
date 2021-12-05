@@ -100,10 +100,9 @@ class RandomSampler(Sampler):
         if self.num_samples is None:
             self.num_samples = len(data_source)
 
-        self.order = np.random.choice(self.num_samples, size=self.num_samples, replace=self.replacement)
-
     def __iter__(self) -> Iterator[int]:
-        return iter(self.order)
+        return iter(np.random.choice(self.num_samples, size=self.num_samples,
+                                     replace=self.replacement))
 
     def __len__(self) -> int:
         return self.num_samples
@@ -156,21 +155,16 @@ def default_collate(batch, device, dtype):
     return collate_ndarray(batch, device, dtype)
 
 
-def collate_mnist(batch, device, dtype):
-    batch = np.atleast_2d(batch)
-    Xs, ys = [np.array(data) for data in zip(*batch)]
-    if len(Xs) == 1:
-        Xs, ys = Xs[0], ys[0]
-    return Tensor(Xs, device=device, dtype=dtype), Tensor(ys, device=device, dtype=dtype)
-
-
 def collate_ndarray(batch, device, dtype):
     """
     Returns Tensor batch with nd array backend
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    batch = np.atleast_2d(batch)
+    Xs, ys = [np.array(data) for data in zip(*batch)]
+    if len(Xs) == 1:
+        Xs, ys = Xs[0], ys[0]
+    return (Tensor(Xs, device=device, dtype=dtype, requires_grad=False),
+            Tensor(ys, device=device, dtype=dtype, requires_grad=False))
 
 
 class Dataset:
@@ -374,14 +368,16 @@ class _BaseDatasetFetcher(object):
 
 
 class _IterableDatasetFetcher(_BaseDatasetFetcher):
-    def __init__(self, dataset, collate_fn, drop_last):
-        super(_IterableDatasetFetcher, self).__init__(dataset, collate_fn, drop_last)
+    def __init__(self, dataset, collate_fn, drop_last, device, dtype):
+        super(_IterableDatasetFetcher, self).__init__(dataset, collate_fn, drop_last, device, dtype)
         self.dataset = dataset
         self.ended = False
+        self.device = device
+        self.dtype = dtype
 
     def fetch(self, possibly_batched_index):
         possibly_batched_index = np.atleast_1d(possibly_batched_index)
-        return collate_mnist([self.dataset[i] for i in possibly_batched_index])
+        return self.collate_fn([self.dataset[i] for i in possibly_batched_index], self.device, self.dtype)
 
 
 def parse_mnist(image_filename, label_filename):
@@ -449,9 +445,17 @@ class CIFAR10Dataset(Dataset):
         X - numpy array of images
         y - numpy array of labels
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        super().__init__(p, transforms)
+        self.base = base_folder
+        if train:
+            images, labels = [], []
+            for i in range(5):
+                img, lbl = self._load_batch(f"data_batch_{i + 1}")
+                images.append(img)
+                labels.append(lbl)
+            self.images, self.labels = np.concatenate(images), np.concatenate(labels)
+        else:
+            self.images, self.labels = self._load_batch("test_batch")
 
     def __getitem__(self, index) -> object:
         """
@@ -459,17 +463,18 @@ class CIFAR10Dataset(Dataset):
 
         Image should be of shape (3, 32, 32)
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return self.images[index], self.labels[index]
 
     def __len__(self) -> int:
         """
         Returns the total number of examples in the dataset
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return len(self.images)
+
+    def _load_batch(self, name):
+        with open(os.path.join(self.base, name), "rb") as f:
+            data = pickle.load(f, encoding="bytes")
+        return data[b"data"].reshape(10000, 3, 32, 32) / 255, data[b"labels"]
 
 
 class Dictionary(object):
@@ -495,17 +500,18 @@ class Dictionary(object):
 
         Returns the word's unique ID.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        if word not in self.word2idx:
+            size = len(self.word2idx)
+            self.idx2word.append(word)
+            self.word2idx[word] = size
+
+        return self.word2idx[word]
 
     def __len__(self):
         """
         Returns the number of unique words in the dictionary.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return len(self.word2idx)
 
 
 class Corpus(object):
@@ -531,9 +537,18 @@ class Corpus(object):
         Output:
         ids: List of ids
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        ids = []
+        max_lines = np.inf if max_lines is None else max_lines
+        with open(path, "r") as f:
+            n = 0
+            while n < max_lines:
+                line = f.readline()
+                if not line:
+                    break
+                tokens = line.split() + ["<eos>"]
+                ids += [self.dictionary.add_word(tok) for tok in tokens]
+                n += 1
+        return ids
 
 
 def batchify(data, batch_size, device, dtype):
@@ -554,9 +569,8 @@ def batchify(data, batch_size, device, dtype):
 
     Returns the data as a numpy array of shape (nbatch, batch_size).
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    trim_size = len(data) // batch_size * batch_size
+    return np.array(data)[:trim_size].reshape(batch_size, -1).T
 
 
 def get_batch(batches, i, bptt, device=None, dtype=None):
@@ -580,6 +594,8 @@ def get_batch(batches, i, bptt, device=None, dtype=None):
     data - Tensor of shape (bptt, bs) with cached data as NDArray
     target - Tensor of shape (bptt*bs,) with cached data as NDArray
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+
+    return (Tensor(batches[i:(i + bptt)],
+                   device=device, dtype=dtype, requires_grad=False),
+            Tensor(batches[i + 1:(i + 1 + bptt)].flatten(),
+                   device=device, dtype=dtype, requires_grad=False))
