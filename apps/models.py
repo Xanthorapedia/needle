@@ -10,14 +10,45 @@ np.random.seed(0)
 class ResNet9(ndl.nn.Module):
     def __init__(self, device=None, dtype="float32"):
         super().__init__()
-        ### BEGIN YOUR SOLUTION ###
-        raise NotImplementedError() ###
-        ### END YOUR SOLUTION
+        self.device = device
+        self.dtype = dtype
+
+        self.features = nn.Sequential(
+            self._make_convbn(3, 16, 7, 4),
+            self._make_convbn(16, 32, 3, 2),
+            nn.Residual(
+                nn.Sequential(
+                    self._make_convbn(32, 32, 3, 1),
+                    self._make_convbn(32, 32, 3, 1),
+                )
+            ),
+            self._make_convbn(32, 64, 3, 2),
+            self._make_convbn(64, 128, 3, 2),
+            nn.Residual(
+                nn.Sequential(
+                    self._make_convbn(128, 128, 3, 1),
+                    self._make_convbn(128, 128, 3, 1),
+                )
+            ),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128, 128, device=device, dtype=dtype),
+            nn.ReLU(),
+            nn.Linear(128, 10, device=device, dtype=dtype)
+        )
 
     def forward(self, x):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        features = self.features(x)
+        return self.classifier(features)
+
+    def _make_convbn(self, in_chan, out_chan, kernel_size, stride):
+        return nn.Sequential(
+            nn.Conv(in_chan, out_chan, kernel_size, stride,
+                    device=self.device, dtype=self.dtype),
+            nn.BatchNorm(out_chan, device=self.device, dtype=self.dtype),
+            nn.ReLU()
+        )
 
 
 class LanguageModel(nn.Module):
