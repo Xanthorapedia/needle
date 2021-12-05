@@ -340,6 +340,17 @@ class TanhOp(Op):
 tanh = register_op("Tanh", TanhOp())
 
 
+class SigmoidOp(Op):
+    def __call__(self, a: Tensor) -> Tensor:
+        return Tensor.make_from_op(self, [a])
+
+    def gradient(self, out_grad, node):
+        return (sigmoid(node.inputs[0]) * (1 - sigmoid(node.inputs[0])) * out_grad,)
+
+
+sigmoid = register_op("Sigmoid", SigmoidOp())
+
+
 class GetItemOp(Op):
     def __call__(self, a: Tensor, idxs: Tuple) -> Tensor:
         return Tensor.make_from_op(self, [a], attrs={"idxs": idxs})
@@ -363,7 +374,7 @@ set_item = register_op("SetItem", SetItemOp())
 
 
 class StackOp(Op):
-    def __call__(self, args: List[Value], axis: int) -> Tensor:
+    def __call__(self, args: List[Value], axis: int = 0) -> Tensor:
         return Tensor.make_from_op(self, args, attrs={'axis': axis})
 
     def gradient(self, out_grad, node):

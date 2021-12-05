@@ -216,6 +216,12 @@ def tanh(inputs, attrs):
     return inputs[0].tanh()
 
 
+@register_nd_compute("Sigmoid")
+def sigmoid(inputs, attrs):
+    exp_x = inputs[0].exp()
+    return exp_x / (1 + exp_x)
+
+
 @register_nd_compute("GetItem")
 def get_item(inputs, attrs):
     """
