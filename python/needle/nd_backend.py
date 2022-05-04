@@ -36,7 +36,7 @@ class NDDevice(Device):
         #TODO fix this
         y_one_hot = []
         for i in range(y.shape[0]):
-            y_one_hot.append(np.eye(num_classes)[int(y[i])])
+            y_one_hot.append(np.eye(num_classes)[np.int32(y[i])])
         y_one_hot = np.array(y_one_hot)
         return nd.array(y_one_hot, device=self.nd_device)
 

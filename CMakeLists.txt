@@ -33,7 +33,7 @@ list(APPEND LINKER_LIBS ${pybind11_LIBRARIES})
 add_library(ndarray_backend_cpu MODULE src/ndarray_backend_cpu.cc)
 target_link_libraries(ndarray_backend_cpu PUBLIC ${LINKER_LIBS})
 pybind11_extension(ndarray_backend_cpu)
-pybind11_strip(ndarray_backend_cpu)
+# pybind11_strip(ndarray_backend_cpu)
 
 
 # directly output to ffi folder
@@ -64,7 +64,7 @@ if(CUDA_FOUND)
 
   target_link_libraries(ndarray_backend_cuda ${LINKER_LIBS})
   pybind11_extension(ndarray_backend_cuda)
-  pybind11_strip(ndarray_backend_cuda)
+  # pybind11_strip(ndarray_backend_cuda)
 
   # directly output to ffi folder
   set_target_properties(ndarray_backend_cuda

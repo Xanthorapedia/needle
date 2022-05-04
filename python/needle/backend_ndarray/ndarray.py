@@ -196,7 +196,7 @@ class NDArray:
         """ Restride the matrix without copying memory. """
         assert len(shape) == len(strides)
         return NDArray.make(
-            shape, strides=strides, device=self.device, handle=self._handle
+            shape, strides=strides, offset=self._offset, device=self.device, handle=self._handle
         )
 
     @property
@@ -501,7 +501,7 @@ class NDArray:
         m, n, p = self.shape[0], self.shape[1], other.shape[1]
 
         # if the matrix is aligned, use tiled matrix multiplication
-        if hasattr(self.device, "matmul_tiled") and all(
+        if self.device == cpu() and hasattr(self.device, "matmul_tiled") and all(
             d % self.device.__tile_size__ == 0 for d in (m, n, p)
         ):
 

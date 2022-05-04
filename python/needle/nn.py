@@ -335,9 +335,11 @@ class RNNCell(Module):
         h' of shape (bs, hidden_size): Tensor contianing the next hidden state
             for each element in the batch.
         """
-        out = X @ self.W_ih
-        if h is not None:
-            out += h @ self.W_hh
+        # 0-init hidden state if not given
+        if h is None:
+            h = ndl.zeros((X.shape[0], self.hidden_size),
+                          device=X.device, dtype=X.dtype, requires_grad=False)
+        out = X @ self.W_ih + h @ self.W_hh
         if self.bias_hh is not None:
             out += (self.bias_ih + self.bias_hh).broadcast_to(out.shape)
         return self.activation(out)
@@ -450,17 +452,20 @@ class LSTMCell(Module):
             element in the batch.
         """
         N = X.shape[0]
-        h_old, c_old = h if h is not None else (None, None)
-        ifgo = (X @ self.W_ih).reshape((N, 4, self.hidden_size))
-        if h_old is not None:
-            ifgo += (h_old @ self.W_hh).reshape((N, 4, self.hidden_size))
+
+        # 0-init hidden state if not given
+        if h[0] is not None:
+            h_old, c_old = h
+        else :
+            h_old = ndl.zeros((N, self.hidden_size), device=X.device, dtype=X.dtype, requires_grad=False)
+            c_old = ndl.zeros((N, self.hidden_size), device=X.device, dtype=X.dtype, requires_grad=False)
+
+        ifgo = (X @ self.W_ih + h_old @ self.W_hh).reshape((N, 4, self.hidden_size))
         if self.bias_hh is not None:
             ifgo += (self.bias_ih + self.bias_hh).reshape((4, self.hidden_size)).broadcast_to(ifgo.shape)
 
         # f * c + i * g
-        c_new = self.sigmoid(ifgo[:, 0, :]) * self.tanh(ifgo[:, 2, :])
-        if c_old is not None:
-            c_new += self.sigmoid(ifgo[:, 1, :]) * c_old
+        c_new = self.sigmoid(ifgo[:, 1, :]) * c_old + self.sigmoid(ifgo[:, 0, :]) * self.tanh(ifgo[:, 2, :])
         h_new = self.sigmoid(ifgo[:, 3, :]) * self.tanh(c_new)
         
         return h_new, c_new
@@ -539,9 +544,14 @@ class Embedding(Module):
         weight - The learnable weights of shape (num_embeddings, embedding_dim)
             initialized from N(0, 1).
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        self.weight = Parameter(
+            ndl.randn((num_embeddings, embedding_dim),
+                      device=device, dtype=dtype, requires_grad=True)
+        )
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.device = device
+        self.dtype = dtype
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -553,6 +563,8 @@ class Embedding(Module):
         Output:
         output of shape (seq_len, bs, embedding_dim)
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        seq_len, bs = x.shape
+        one_hot = ndl.ops.one_hot(x, num_classes=self.num_embeddings,
+                                  dtype=self.dtype, device=self.device)
+        out = one_hot.reshape((seq_len * bs, self.num_embeddings)) @ self.weight
+        return out.reshape((seq_len, bs, self.embedding_dim))
